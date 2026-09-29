@@ -1,0 +1,6 @@
+# Parser und Prüfskript (Schnellstart)
+requests>=2.28
+pypdf>=4.0
+# bank_parser.py und supabase_sync.py als Kommandozeilenwerkzeuge brauchen zusätzlich:
+#   pip install supabase python-dotenv
+# Die API hat eigene Abhängigkeiten in api/requirements.txt, der Downloader in downloader/requirements.txt.

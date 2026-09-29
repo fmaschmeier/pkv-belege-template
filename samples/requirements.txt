@@ -1,0 +1,5 @@
+reportlab>=4.0
+pillow>=10.1
+pypdf>=4.0
+pypdfium2>=4.0
+requests>=2.28

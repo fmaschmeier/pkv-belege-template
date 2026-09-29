@@ -1,0 +1,15 @@
+pkv-belege-template
+
+Required Notice: Copyright 2026 Frank Maschmeier (https://github.com/fmaschmeier)
+
+Code (*.py, api/, web/, downloader/, n8n/*.json, schema.sql, migrations/):
+PolyForm Noncommercial License 1.0.0, siehe LICENSE
+  https://polyformproject.org/licenses/noncommercial/1.0.0
+
+Dokumentation, Prompt und Beispieldaten (Markdown-Dateien, docs/, prompts/, sowie PDFs,
+Fixtures und manifest.json in samples/): Creative Commons Namensnennung - Nicht kommerziell -
+Weitergabe unter gleichen Bedingungen 4.0 International (CC BY-NC-SA 4.0), siehe LICENSE-DOCS.txt
+  https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+Alle Personen, Praxen, Beträge und Bankverbindungen in samples/ sind frei erfunden.
+Dieses Projekt ist nicht mit der Universa Krankenversicherung verbunden.

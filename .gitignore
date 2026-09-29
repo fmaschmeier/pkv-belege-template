@@ -1,0 +1,22 @@
+# Echte Belege, Zugangsdaten und ausgelesene Texte gehören nie ins Repo
+.env
+.env.*
+!.env.example
+.cache/
+*.pdf
+!samples/belege/*.pdf
+!samples/scans/*.pdf
+!samples/abrechnungen/*.pdf
+
+# Build-Artefakte
+node_modules/
+dist/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# System
+.DS_Store

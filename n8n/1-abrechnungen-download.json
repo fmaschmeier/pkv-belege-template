@@ -1,0 +1,810 @@
+{
+  "name": "universa abrechnungen download",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -416,
+        -208
+      ],
+      "id": "2d455853-270d-48c5-9fdb-fb407b3a20f9",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 4
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -416,
+        -16
+      ],
+      "id": "b405f629-d262-49d3-a8ca-5f6a680e7086",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "amount": 30
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        -112
+      ],
+      "id": "f061480d-23b7-478b-99d7-7638422beda7",
+      "name": "Wait"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "limit": 1,
+        "filters": {
+          "q": "from:noreply@uniVersa.de",
+          "readStatus": "unread"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1136,
+        -112
+      ],
+      "id": "36fcf880-592b-466b-b8ba-ff42f634c0d6",
+      "name": "Get many messages",
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1) Workflow-Static-Data laden (global)\nconst staticData = $getWorkflowStaticData('global');\n\nstaticData.current_universa_session = $input.first().json.session_id;\nstaticData.current_universa_session_time = $now;\nstaticData.current_universa_session_time_unix = Date.now();\n\n// 2) Mindestens ein Item zurückgeben\nreturn [\n  {\n    json: {\n      session_id: staticData.current_universa_session,\n      stored_at: staticData.current_universa_session_time,\n      stored_at_unix: staticData.current_universa_session_time_unix,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        -112
+      ],
+      "id": "fd911823-841b-4146-bbfa-19940cc80b9b",
+      "name": "save session to global"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://DEIN-DOWNLOADER.run.app/login/start",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        544,
+        -112
+      ],
+      "id": "ca6f942e-8ce2-4766-bbf2-6057746cd3d9",
+      "name": "universa login -> trigger 2fa",
+      "credentials": {
+        "httpBearerAuth": {
+          "name": "Downloader Bearer-Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://DEIN-DOWNLOADER.run.app/login/complete",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"session_id\": \"{{ $('universa login -> trigger 2fa').item.json.session_id }}\", \"pin\": \"{{ ($json.snippet.match(/\\b\\d{6}\\b/) || [])[0] }}\"}     ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1872,
+        -160
+      ],
+      "id": "a0b31330-8bbf-4530-9e16-d9d5bf215bb8",
+      "name": "enter 2fa for final login",
+      "credentials": {
+        "httpBearerAuth": {
+          "name": "Downloader Bearer-Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://DEIN-DOWNLOADER.run.app/documents/recent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "session_id",
+              "value": "={{ $json.stored_session_id || $('save session to global').item.json.session_id }}"
+            },
+            {
+              "name": "max_age_days",
+              "value": "=4"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2416,
+        -368
+      ],
+      "id": "68f49429-fd9d-4b1d-a2b0-af3825856f49",
+      "name": "get recent documents",
+      "credentials": {
+        "httpBearerAuth": {
+          "name": "Downloader Bearer-Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 3,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "3ae8ed54-4d91-4e78-a0ee-9257a1f5bf0b",
+              "leftValue": "={{ $('Get many messages').item.json.internalDate.toNumber() +1000}}",
+              "rightValue": "={{ $('save session to global').item.json.stored_at_unix }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1600,
+        -144
+      ],
+      "id": "9fc170ff-4330-4ec5-b02d-ac58f6f99be4",
+      "name": "time email after 2fa trigger"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 3,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "60bac363-3dd6-4e90-8efd-e854f1c4b9b5",
+              "leftValue": "={{ ($json.snippet.match(/\\b\\d{6}\\b/) || [])[0].toNumber() }}",
+              "rightValue": "",
+              "operator": {
+                "type": "number",
+                "operation": "exists"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1344,
+        -112
+      ],
+      "id": "391101d5-5229-4f89-86ef-6e690008b721",
+      "name": "pin exists in email"
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\n\nconst MAX_AGE_MS = 5 * 60 * 1000;\nconst now = Date.now();\n\nconst storedSessionId = staticData.current_universa_session ?? null;\nconst storedAt = staticData.current_universa_session_time_unix ?? null;\n\nconst ageMs = storedAt ? now - storedAt : null;\nconst reusable = Boolean(storedSessionId && storedAt && ageMs <= MAX_AGE_MS);\n\nreturn [\n  {\n    json: {\n      reusable,\n\n      // business output\n      session_id: reusable ? storedSessionId : null,\n\n      // debug: always show what is stored\n      stored_session_id: storedSessionId,\n      last_session_time_unix: storedAt,\n      last_session_age_ms: ageMs,\n      now_unix: now,\n      max_age_ms: MAX_AGE_MS,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -48,
+        -96
+      ],
+      "id": "78d35cac-c5e3-4739-b7ee-de66344976b2",
+      "name": "Get session from global"
+    },
+    {
+      "parameters": {
+        "jsCode": "const fromStored = $input.first().json.stored_session_id ?? null;\n\nlet fromNew = null;\ntry {\n  fromNew = $('save session to global').item.json.session_id ?? null;\n} catch (e) {\n  fromNew = null;\n}\n\nif (!fromStored && !fromNew) {\n  throw new Error('No session_id available: neither reused nor newly created');\n}\n\nreturn [\n  {\n    json: {\n      session_id: fromStored || fromNew,\n      source: fromStored ? 'reused' : 'new',\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        -160
+      ],
+      "id": "b7c51ef7-445d-4039-9215-f1e7aa87b9c0",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "jsCode": "const docs = $input.first().json.documents;\n\nif (!Array.isArray(docs) || docs.length === 0) {\n  throw new Error('documents is missing or empty');\n}\n\nreturn docs.map((doc) => {\n  if (!doc.filename || !doc.content_base64) {\n    throw new Error('Document missing filename or content_base64');\n  }\n\n  const base64 = String(doc.content_base64).replace(/^data:.*?;base64,/, '');\n\n  return {\n    json: {\n      filename: doc.filename,\n      date: doc.date ?? null,\n    },\n    binary: {\n      data: {\n        data: base64,\n        fileName: doc.filename,\n        mimeType: 'application/pdf',\n      },\n    },\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2928,
+        -336
+      ],
+      "id": "41023058-b6da-458a-9f95-3009a9de0667",
+      "name": "extract files",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 3,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "345b4383-690f-4184-b704-73cba373936c",
+              "leftValue": "={{ $json.reusable }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        208,
+        -272
+      ],
+      "id": "66813991-359f-47a0-a30f-4570c45024eb",
+      "name": "gibt es noch gültige session?"
+    },
+    {
+      "parameters": {
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "ORDNER-ID-ABRECHNUNGEN-EINGANG",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        4336,
+        -240
+      ],
+      "id": "06479a04-5c9e-4138-a1a1-1e3cbc05e111",
+      "name": "Upload file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "name": "Google Drive"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        3120,
+        -336
+      ],
+      "id": "70209a60-7708-43d1-9734-397b94f79bf9",
+      "name": "Loop Over Items",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    itemIndex: $itemIndex,\n    jsonFilename: $json.filename,\n    binaryFilename: $binary?.data?.fileName ?? null,\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3392,
+        -320
+      ],
+      "id": "d80862e2-1c57-4db6-a54f-853383059b39",
+      "name": "debug filename"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "queryString": "={{ $json.jsonFilename }}",
+        "returnAll": true,
+        "filter": {
+          "folderId": {
+            "__rl": true,
+            "value": "ORDNER-ID-ABRECHNUNGEN-VERARBEITET",
+            "mode": "id"
+          },
+          "whatToSearch": "files"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        3600,
+        -320
+      ],
+      "id": "463840d1-ff1c-4e91-9faa-58f2f5a6c02f",
+      "name": "Search files and folders",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "name": "Google Drive"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ca2b081b-8d6c-4e9f-85ab-1c80127b093c",
+              "leftValue": "={{ $json.documents.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2688,
+        -288
+      ],
+      "id": "f59fea2f-a65d-440a-b48e-58e29a807a03",
+      "name": "documents not empty"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 3,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "595c5214-a48b-4ae4-9cc7-5d4da4c0ea2f",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3808,
+        -320
+      ],
+      "id": "71903464-8a81-4a03-a8f1-03e08c4a2877",
+      "name": "file exists already"
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch"
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        4128,
+        -448
+      ],
+      "id": "7a8727d4-393a-4e50-b342-14958160b0b4",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "q": "subject:\"uniVersa Kundenportal - Sie haben eine neue Nachricht\"",
+          "sender": "noreply@uniVersa.de"
+        }
+      },
+      "id": "gmail-trigger-universa",
+      "name": "Gmail Trigger - uniVersa Benachrichtigung",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -416,
+        176
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "ID-DES-WORKFLOWS-ABRECHNUNG-VERARBEITEN",
+          "mode": "list",
+          "cachedResultName": "universa process downloaded settlement statements"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        3328,
+        -496
+      ],
+      "id": "84394a48-2337-46c7-8ccd-88b7ba80579b",
+      "name": "Call 'universa process downloaded settlement statements'"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get session from global",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Get session from global",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Get many messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many messages": {
+      "main": [
+        [
+          {
+            "node": "pin exists in email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "save session to global": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "universa login -> trigger 2fa": {
+      "main": [
+        [
+          {
+            "node": "save session to global",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "enter 2fa for final login": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "time email after 2fa trigger": {
+      "main": [
+        [
+          {
+            "node": "enter 2fa for final login",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "pin exists in email": {
+      "main": [
+        [
+          {
+            "node": "time email after 2fa trigger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get session from global": {
+      "main": [
+        [
+          {
+            "node": "gibt es noch gültige session?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "get recent documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get recent documents": {
+      "main": [
+        [
+          {
+            "node": "documents not empty",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "gibt es noch gültige session?": {
+      "main": [
+        [
+          {
+            "node": "get recent documents",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "universa login -> trigger 2fa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "extract files": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Call 'universa process downloaded settlement statements'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "debug filename",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload file": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "debug filename": {
+      "main": [
+        [
+          {
+            "node": "Search files and folders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search files and folders": {
+      "main": [
+        [
+          {
+            "node": "file exists already",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "documents not empty": {
+      "main": [
+        [
+          {
+            "node": "extract files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "file exists already": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Upload file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Trigger - uniVersa Benachrichtigung": {
+      "main": [
+        [
+          {
+            "node": "Get session from global",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Berlin"
+  },
+  "pinData": {}
+}

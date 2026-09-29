@@ -1,0 +1,63 @@
+# Cloud Build configuration for deploying to Cloud Run
+#
+# Required substitutions (set via Cloud Build trigger or command line):
+#   _SERVICE_NAME: Name of the Cloud Run service
+#   _REGION: GCP region (e.g., europe-west1)
+#
+# Required secrets (configure in Secret Manager):
+#   BEARER_TOKEN
+#   UNIVERSA_USERNAME
+#   UNIVERSA_PASSWORD
+
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:latest'
+      - '.'
+
+  # Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$COMMIT_SHA'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:latest'
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$COMMIT_SHA'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--memory'
+      - '512Mi'
+      - '--timeout'
+      - '300'
+      - '--set-secrets'
+      - 'BEARER_TOKEN=BEARER_TOKEN:latest,UNIVERSA_USERNAME=UNIVERSA_USERNAME:latest,UNIVERSA_PASSWORD=UNIVERSA_PASSWORD:latest'
+      - '--set-env-vars'
+      - 'SESSION_TIMEOUT_SECONDS=300'
+
+substitutions:
+  _SERVICE_NAME: universa-api
+  _REGION: europe-west1
+
+images:
+  - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:latest'
