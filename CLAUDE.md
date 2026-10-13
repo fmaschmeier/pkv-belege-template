@@ -13,6 +13,7 @@ Ablauf in `docs/ABLAUF.md`, Einrichtung in `docs/EINRICHTUNG.md`.
 - `receipt_parser.py`, `parser.py`, `bank_parser.py` Parser; `api/app/services/receipt_parser.py` ist die Kopie für die API
 - `schema.sql` + `migrations/` (in Nummernfolge) = Datenbankstand der laufenden Instanz
 - `samples/` synthetische Testdaten, `manifest.json` enthält die Soll-Werte
+- `deploy/` Cloud-Build-Konfigurationen für API und Web-App; Werte einer Instanz nur als Substitutionen
 
 ## Befehle
 

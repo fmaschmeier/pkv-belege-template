@@ -1,0 +1,9 @@
+# Baut das API-Image in Cloud Build. Aus dem Repo-Wurzelverzeichnis aufrufen, weil das Image die
+# Parser mitnimmt (parser.py, receipt_parser.py, bank_parser.py):
+#
+#   gcloud builds submit --config deploy/cloudbuild-api.yaml \
+#     --substitutions=_IMAGE=europe-west1-docker.pkg.dev/<projekt>/<repo>/pkv-api:<tag> .
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "api/Dockerfile", "-t", "${_IMAGE}", "."]
+images: ["${_IMAGE}"]

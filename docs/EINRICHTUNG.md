@@ -38,12 +38,17 @@ Vorlage: [`api/.env.example`](../api/.env.example).
 
 - Lokal: `.env` im Repo-Wurzelverzeichnis anlegen, `docker compose up --build`
   ([`docker-compose.yml`](../docker-compose.yml)), API auf Port 8080.
-- Cloud Run: aus dem Repo-Wurzelverzeichnis bauen, weil das Image die Parser mitnimmt:
+- Cloud Run: aus dem Repo-Wurzelverzeichnis bauen, weil das Image die Parser mitnimmt. Mit Cloud
+  Build und [`deploy/cloudbuild-api.yaml`](../deploy/cloudbuild-api.yaml):
   ```bash
-  docker buildx build --platform linux/amd64 -t pkv-api -f api/Dockerfile .
+  gcloud builds submit --config deploy/cloudbuild-api.yaml \
+    --substitutions=_IMAGE=europe-west1-docker.pkg.dev/<projekt>/<repo>/pkv-api:<tag> .
+  gcloud run deploy pkv-api --image europe-west1-docker.pkg.dev/<projekt>/<repo>/pkv-api:<tag>
   ```
-  Image in eine Registry schieben, `gcloud run deploy`, Variablen als Umgebungsvariablen bzw.
-  Secrets setzen.
+  Variablen als Umgebungsvariablen bzw. Secrets setzen. `CORS_ORIGINS` enthält eine JSON-Liste mit
+  Kommas; dafür braucht `--update-env-vars` ein anderes Trennzeichen, etwa
+  `--update-env-vars '^@^CORS_ORIGINS=["https://…"]@INSURED_PERSONS=…'`. Cloud Run vergibt jedem Dienst
+  zwei Adressen; beide Adressen der Web-App gehören in `CORS_ORIGINS`.
 
 ## 3. Web-App (`web/`, React)
 
@@ -63,6 +68,11 @@ Zur **Laufzeit** schützt nginx die Seite zusätzlich per Passwort: `BASIC_AUTH_
 
 Lokal: `cd web && npm ci && npm run dev`, Werte in `web/.env` (Vorlage
 [`web/.env.example`](../web/.env.example)).
+
+Cloud Run: mit [`deploy/cloudbuild-web.yaml`](../deploy/cloudbuild-web.yaml) bauen, die `VITE_*`-Werte als
+Substitutionen `_VITE_…` übergeben. Weil `VITE_PERSON_NAMES` Kommas enthält, ein anderes Trennzeichen
+wählen: `--substitutions='^|^_IMAGE=…|_VITE_API_URL=…|_VITE_PERSON_NAMES=A,B'`. Danach
+`gcloud run deploy` mit dem Image, `BASIC_AUTH_USER` und `BASIC_AUTH_PASS` als Variablen.
 
 ## 4. Downloader (`downloader/`)
 
