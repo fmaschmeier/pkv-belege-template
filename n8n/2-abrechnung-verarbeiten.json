@@ -2,28 +2,17 @@
   "name": "universa process downloaded settlement statements",
   "nodes": [
     {
-      "credentials": {
-        "httpHeaderAuth": {
-          "name": "Supabase apikey (Header)"
-        }
-      },
       "id": "3e9d6dcd-1299-4066-85dd-9cd4db7e1c0c",
       "name": "HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -48,
+        160
+      ],
       "parameters": {
         "authentication": "genericCredentialType",
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "email",
-              "value": "app-benutzer@example.com"
-            },
-            {
-              "name": "password",
-              "value": "APP-PASSWORT"
-            }
-          ]
-        },
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "headerParameters": {
           "parameters": [
             {
@@ -36,23 +25,25 @@
         "options": {},
         "sendBody": true,
         "sendHeaders": true,
-        "url": "https://DEIN-PROJEKT.supabase.co/auth/v1/token?grant_type=password"
+        "url": "https://DEIN-PROJEKT.supabase.co/auth/v1/token?grant_type=password",
+        "specifyBody": "json",
+        "jsonBody": "{}"
       },
-      "position": [
-        -48,
-        160
-      ],
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase App-Login (Custom Auth)"
+        }
+      }
     },
     {
-      "credentials": {
-        "googleDriveOAuth2Api": {
-          "name": "Google Drive"
-        }
-      },
       "id": "5878b2fd-36af-4080-9e74-00eeb6615761",
       "name": "Google Drive Trigger",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -352,
+        160
+      ],
       "parameters": {
         "event": "fileCreated",
         "folderToWatch": {
@@ -73,21 +64,21 @@
         },
         "triggerOn": "specificFolder"
       },
-      "position": [
-        -352,
-        160
-      ],
-      "type": "n8n-nodes-base.googleDriveTrigger",
-      "typeVersion": 1
-    },
-    {
       "credentials": {
         "googleDriveOAuth2Api": {
           "name": "Google Drive"
         }
-      },
+      }
+    },
+    {
       "id": "0e56408e-ced3-4c6f-b2d0-02c894d4a151",
       "name": "Download file",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        192,
+        160
+      ],
       "parameters": {
         "fileId": {
           "__rl": true,
@@ -97,18 +88,23 @@
         "operation": "download",
         "options": {}
       },
-      "position": [
-        192,
-        160
-      ],
-      "type": "n8n-nodes-base.googleDrive",
-      "typeVersion": 3
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "name": "Google Drive"
+        }
+      }
     },
     {
-      "alwaysOutputData": false,
       "id": "8621b7c3-1210-4c59-aa5b-4b1903d362bc",
       "name": "upload file",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "alwaysOutputData": false,
       "onError": "continueRegularOutput",
+      "position": [
+        640,
+        16
+      ],
       "parameters": {
         "bodyParameters": {
           "parameters": [
@@ -133,17 +129,17 @@
         "sendBody": true,
         "sendHeaders": true,
         "url": "https://DEINE-API.run.app/settlements/upload"
-      },
-      "position": [
-        640,
-        16
-      ],
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3
+      }
     },
     {
       "id": "cbba0d7c-2410-4deb-aa8a-274df364b691",
       "name": "file maximal 23h alt",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        400,
+        160
+      ],
       "parameters": {
         "conditions": {
           "combinator": "and",
@@ -175,22 +171,17 @@
           }
         },
         "options": {}
-      },
-      "position": [
-        400,
-        160
-      ],
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3
+      }
     },
     {
-      "credentials": {
-        "googleDriveOAuth2Api": {
-          "name": "Google Drive"
-        }
-      },
       "id": "63af686a-3d0e-4f0f-97cc-6b7f9df5e379",
       "name": "Move file",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1360,
+        192
+      ],
       "parameters": {
         "driveId": {
           "__rl": true,
@@ -213,16 +204,21 @@
         },
         "operation": "move"
       },
-      "position": [
-        1360,
-        192
-      ],
-      "type": "n8n-nodes-base.googleDrive",
-      "typeVersion": 3
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "name": "Google Drive"
+        }
+      }
     },
     {
       "id": "59523b72-91a1-4a39-97b8-104be9f43d3c",
       "name": "notes exist",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        816,
+        48
+      ],
       "parameters": {
         "conditions": {
           "combinator": "and",
@@ -245,22 +241,17 @@
           }
         },
         "options": {}
-      },
-      "position": [
-        816,
-        48
-      ],
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3
+      }
     },
     {
-      "credentials": {
-        "googleDriveOAuth2Api": {
-          "name": "Google Drive"
-        }
-      },
       "id": "c1f0a7e2-5b41-4c8e-9a77-2b1d3e6f0a11",
       "name": "PDF für Mail laden",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        976,
+        -160
+      ],
       "parameters": {
         "fileId": {
           "__rl": true,
@@ -270,21 +261,21 @@
         "operation": "download",
         "options": {}
       },
-      "position": [
-        976,
-        -160
-      ],
-      "type": "n8n-nodes-base.googleDrive",
-      "typeVersion": 3
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "name": "Google Drive"
+        }
+      }
     },
     {
-      "credentials": {
-        "gmailOAuth2": {
-          "name": "Gmail"
-        }
-      },
       "id": "bc310daf-246f-4661-a785-e0c64549d5e0",
       "name": "Send a message",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1216,
+        -160
+      ],
       "parameters": {
         "authentication": "oAuth2",
         "emailType": "text",
@@ -303,35 +294,35 @@
         "sendTo": "du@example.com",
         "subject": "Neue PKV-Abrechnung mit Kommentaren"
       },
-      "position": [
-        1216,
-        -160
-      ],
-      "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2.2
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Gmail"
+        }
+      }
     },
     {
       "id": "b2baf1b2-afd0-4be6-96b7-a5d5fa24ffa7",
       "name": "When Executed by Another Workflow",
-      "parameters": {
-        "inputSource": "passthrough"
-      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
       "position": [
         -512,
         -32
       ],
-      "type": "n8n-nodes-base.executeWorkflowTrigger",
-      "typeVersion": 1.1
+      "parameters": {
+        "inputSource": "passthrough"
+      }
     },
     {
-      "credentials": {
-        "googleDriveOAuth2Api": {
-          "name": "Google Drive"
-        }
-      },
-      "executeOnce": true,
       "id": "786f4635-ec95-491b-8374-0f1f5e10d290",
       "name": "Search files and folders",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "executeOnce": true,
+      "position": [
+        -240,
+        -32
+      ],
       "parameters": {
         "filter": {
           "folderId": {
@@ -354,12 +345,101 @@
         "resource": "fileFolder",
         "returnAll": true
       },
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "name": "Google Drive"
+        }
+      }
+    },
+    {
+      "id": "a9140840-d072-4c4c-adfb-76311cdeb911",
+      "name": "Leistungsabrechnung?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
       "position": [
-        -240,
-        -32
+        620,
+        420
       ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c2940ba7-5095-4a10-ba74-29abd6399a4c",
+              "leftValue": "={{ $('Google Drive Trigger').isExecuted ? $('Google Drive Trigger').item.json.originalFilename : $('Search files and folders').item.json.name }}",
+              "rightValue": "Leistungsinformationen",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f0beb12a-0975-4586-a8cc-92ad573919e9",
+      "name": "Brief laden",
       "type": "n8n-nodes-base.googleDrive",
-      "typeVersion": 3
+      "typeVersion": 3,
+      "position": [
+        840,
+        560
+      ],
+      "parameters": {
+        "fileId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Google Drive Trigger').isExecuted ? $('Google Drive Trigger').item.json.id : $('Search files and folders').item.json.id }}"
+        },
+        "operation": "download",
+        "options": {}
+      },
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "name": "Google Drive"
+        }
+      }
+    },
+    {
+      "id": "5be7f6fe-c551-454b-b3a2-1bd7b6c68a27",
+      "name": "Brief per Mail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1060,
+        560
+      ],
+      "parameters": {
+        "authentication": "oAuth2",
+        "emailType": "text",
+        "message": "=Im uniVersa-Kundenportal ist ein neues Dokument eingegangen, das keine Leistungsabrechnung ist.\n\nDatei: {{ $('Google Drive Trigger').isExecuted ? $('Google Drive Trigger').item.json.originalFilename : $('Search files and folders').item.json.name }}\n\nDie PDF hängt an. Bitte lesen – solche Schreiben enthalten oft Fristen (z. B. Angebote, Vertragsänderungen, Sicherheitshinweise).\n\nAbgelegt in Google Drive im Ordner PKV_processed.",
+        "operation": "send",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {
+                "property": "data"
+              }
+            ]
+          }
+        },
+        "resource": "message",
+        "sendTo": "du@example.com",
+        "subject": "={{ 'Neues Dokument im uniVersa-Postfach: ' + ($('Google Drive Trigger').isExecuted ? $('Google Drive Trigger').item.json.originalFilename : $('Search files and folders').item.json.name) }}"
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Gmail"
+        }
+      }
     }
   ],
   "connections": {
@@ -451,9 +531,9 @@
         ],
         [
           {
-            "index": 0,
-            "node": "Move file",
-            "type": "main"
+            "node": "Leistungsabrechnung?",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -483,6 +563,46 @@
             "index": 0,
             "node": "notes exist",
             "type": "main"
+          }
+        ]
+      ]
+    },
+    "Leistungsabrechnung?": {
+      "main": [
+        [
+          {
+            "node": "Move file",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Brief laden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Brief laden": {
+      "main": [
+        [
+          {
+            "node": "Brief per Mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Brief per Mail": {
+      "main": [
+        [
+          {
+            "node": "Move file",
+            "type": "main",
+            "index": 0
           }
         ]
       ]

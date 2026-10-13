@@ -32,7 +32,7 @@ Schritt für Schritt in [`docs/ABLAUF.md`](docs/ABLAUF.md).
 
 | Pfad | Inhalt |
 |---|---|
-| [`n8n/`](n8n/README.md) | drei Workflows: Belege erfassen, Abrechnungen aus dem Portal holen, Abrechnungen verarbeiten |
+| [`n8n/`](n8n/README.md) | drei Workflows: Belege erfassen, Abrechnungen aus dem Portal holen, Abrechnungen verarbeiten und alle übrigen Briefe per Mail weiterleiten |
 | [`downloader/`](downloader/README.md) | Dienst, der sich per Browser (Playwright) mit 2FA im Kundenportal anmeldet und Dokumente holt |
 | [`api/`](api/) | FastAPI: Belege und Abrechnungen speichern, Abgleich, Bank-Import, SEPA-QR |
 | [`web/`](web/) | React-Oberfläche: Übersicht, Belege, Abrechnungen, Kontobewegungen, Regeln, Erinnerungen nach § 14 VVG |

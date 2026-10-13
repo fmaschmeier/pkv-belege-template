@@ -2,17 +2,25 @@
   "name": "universa abrechnungen download",
   "nodes": [
     {
-      "parameters": {},
+      "id": "2d455853-270d-48c5-9fdb-fb407b3a20f9",
+      "name": "When clicking ‘Execute workflow’",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
         -416,
         -208
       ],
-      "id": "2d455853-270d-48c5-9fdb-fb407b3a20f9",
-      "name": "When clicking ‘Execute workflow’"
+      "parameters": {}
     },
     {
+      "id": "b405f629-d262-49d3-a8ca-5f6a680e7086",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -416,
+        -16
+      ],
       "parameters": {
         "rule": {
           "interval": [
@@ -21,30 +29,31 @@
             }
           ]
         }
-      },
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.3,
-      "position": [
-        -416,
-        -16
-      ],
-      "id": "b405f629-d262-49d3-a8ca-5f6a680e7086",
-      "name": "Schedule Trigger"
+      }
     },
     {
-      "parameters": {
-        "amount": 30
-      },
+      "id": "f061480d-23b7-478b-99d7-7638422beda7",
+      "name": "Wait",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
         960,
         -112
       ],
-      "id": "f061480d-23b7-478b-99d7-7638422beda7",
-      "name": "Wait"
+      "parameters": {
+        "amount": 30
+      }
     },
     {
+      "id": "36fcf880-592b-466b-b8ba-ff42f634c0d6",
+      "name": "Get many messages",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "alwaysOutputData": true,
+      "position": [
+        1136,
+        -112
+      ],
       "parameters": {
         "operation": "getAll",
         "limit": 1,
@@ -53,14 +62,6 @@
           "readStatus": "unread"
         }
       },
-      "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2.2,
-      "position": [
-        1136,
-        -112
-      ],
-      "id": "36fcf880-592b-466b-b8ba-ff42f634c0d6",
-      "name": "Get many messages",
       "credentials": {
         "gmailOAuth2": {
           "name": "Gmail"
@@ -68,19 +69,27 @@
       }
     },
     {
-      "parameters": {
-        "jsCode": "// 1) Workflow-Static-Data laden (global)\nconst staticData = $getWorkflowStaticData('global');\n\nstaticData.current_universa_session = $input.first().json.session_id;\nstaticData.current_universa_session_time = $now;\nstaticData.current_universa_session_time_unix = Date.now();\n\n// 2) Mindestens ein Item zurückgeben\nreturn [\n  {\n    json: {\n      session_id: staticData.current_universa_session,\n      stored_at: staticData.current_universa_session_time,\n      stored_at_unix: staticData.current_universa_session_time_unix,\n    },\n  },\n];"
-      },
+      "id": "fd911823-841b-4146-bbfa-19940cc80b9b",
+      "name": "save session to global",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         784,
         -112
       ],
-      "id": "fd911823-841b-4146-bbfa-19940cc80b9b",
-      "name": "save session to global"
+      "parameters": {
+        "jsCode": "// 1) Workflow-Static-Data laden (global)\nconst staticData = $getWorkflowStaticData('global');\n\nstaticData.current_universa_session = $input.first().json.session_id;\nstaticData.current_universa_session_time = $now;\nstaticData.current_universa_session_time_unix = Date.now();\n\n// 2) Mindestens ein Item zurückgeben\nreturn [\n  {\n    json: {\n      session_id: staticData.current_universa_session,\n      stored_at: staticData.current_universa_session_time,\n      stored_at_unix: staticData.current_universa_session_time_unix,\n    },\n  },\n];"
+      }
     },
     {
+      "id": "ca6f942e-8ce2-4766-bbf2-6057746cd3d9",
+      "name": "universa login -> trigger 2fa",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        544,
+        -112
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://DEIN-DOWNLOADER.run.app/login/start",
@@ -88,14 +97,6 @@
         "genericAuthType": "httpBearerAuth",
         "options": {}
       },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        544,
-        -112
-      ],
-      "id": "ca6f942e-8ce2-4766-bbf2-6057746cd3d9",
-      "name": "universa login -> trigger 2fa",
       "credentials": {
         "httpBearerAuth": {
           "name": "Downloader Bearer-Token"
@@ -103,6 +104,14 @@
       }
     },
     {
+      "id": "a0b31330-8bbf-4530-9e16-d9d5bf215bb8",
+      "name": "enter 2fa for final login",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1872,
+        -160
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://DEIN-DOWNLOADER.run.app/login/complete",
@@ -119,17 +128,9 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\"session_id\": \"{{ $('universa login -> trigger 2fa').item.json.session_id }}\", \"pin\": \"{{ ($json.snippet.match(/\\b\\d{6}\\b/) || [])[0] }}\"}     ",
+        "jsonBody": "={\"session_id\": \"{{ $('universa login -> trigger 2fa').first().json.session_id }}\", \"pin\": \"{{ ($json.snippet.match(/\\b\\d{6}\\b/) || [])[0] }}\"}     ",
         "options": {}
       },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        1872,
-        -160
-      ],
-      "id": "a0b31330-8bbf-4530-9e16-d9d5bf215bb8",
-      "name": "enter 2fa for final login",
       "credentials": {
         "httpBearerAuth": {
           "name": "Downloader Bearer-Token"
@@ -137,6 +138,14 @@
       }
     },
     {
+      "id": "68f49429-fd9d-4b1d-a2b0-af3825856f49",
+      "name": "get recent documents",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2416,
+        -368
+      ],
       "parameters": {
         "url": "https://DEIN-DOWNLOADER.run.app/documents/recent",
         "authentication": "genericCredentialType",
@@ -146,7 +155,7 @@
           "parameters": [
             {
               "name": "session_id",
-              "value": "={{ $json.stored_session_id || $('save session to global').item.json.session_id }}"
+              "value": "={{ $json.stored_session_id || $('save session to global').first().json.session_id }}"
             },
             {
               "name": "max_age_days",
@@ -156,14 +165,6 @@
         },
         "options": {}
       },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        2416,
-        -368
-      ],
-      "id": "68f49429-fd9d-4b1d-a2b0-af3825856f49",
-      "name": "get recent documents",
       "credentials": {
         "httpBearerAuth": {
           "name": "Downloader Bearer-Token"
@@ -171,19 +172,27 @@
       }
     },
     {
+      "id": "9fc170ff-4330-4ec5-b02d-ac58f6f99be4",
+      "name": "time email after 2fa trigger",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1600,
+        -144
+      ],
       "parameters": {
         "conditions": {
           "options": {
-            "version": 3,
-            "leftValue": "",
             "caseSensitive": true,
-            "typeValidation": "strict"
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
           },
           "conditions": [
             {
               "id": "3ae8ed54-4d91-4e78-a0ee-9257a1f5bf0b",
-              "leftValue": "={{ $('Get many messages').item.json.internalDate.toNumber() +1000}}",
-              "rightValue": "={{ $('save session to global').item.json.stored_at_unix }}",
+              "leftValue": "={{ $json.internalDate.toNumber() + 1000 }}",
+              "rightValue": "={{ $('save session to global').first().json.stored_at_unix }}",
               "operator": {
                 "type": "number",
                 "operation": "gt"
@@ -193,97 +202,98 @@
           "combinator": "and"
         },
         "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
-      "position": [
-        1600,
-        -144
-      ],
-      "id": "9fc170ff-4330-4ec5-b02d-ac58f6f99be4",
-      "name": "time email after 2fa trigger"
+      }
     },
     {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "version": 3,
-            "leftValue": "",
-            "caseSensitive": true,
-            "typeValidation": "strict"
-          },
-          "conditions": [
-            {
-              "id": "60bac363-3dd6-4e90-8efd-e854f1c4b9b5",
-              "leftValue": "={{ ($json.snippet.match(/\\b\\d{6}\\b/) || [])[0].toNumber() }}",
-              "rightValue": "",
-              "operator": {
-                "type": "number",
-                "operation": "exists"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
+      "id": "391101d5-5229-4f89-86ef-6e690008b721",
+      "name": "pin exists in email",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
         1344,
         -112
       ],
-      "id": "391101d5-5229-4f89-86ef-6e690008b721",
-      "name": "pin exists in email"
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "60bac363-3dd6-4e90-8efd-e854f1c4b9b5",
+              "leftValue": "={{ /\\b\\d{6}\\b/.test($json.snippet ?? '') }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
     },
     {
-      "parameters": {
-        "jsCode": "const staticData = $getWorkflowStaticData('global');\n\nconst MAX_AGE_MS = 5 * 60 * 1000;\nconst now = Date.now();\n\nconst storedSessionId = staticData.current_universa_session ?? null;\nconst storedAt = staticData.current_universa_session_time_unix ?? null;\n\nconst ageMs = storedAt ? now - storedAt : null;\nconst reusable = Boolean(storedSessionId && storedAt && ageMs <= MAX_AGE_MS);\n\nreturn [\n  {\n    json: {\n      reusable,\n\n      // business output\n      session_id: reusable ? storedSessionId : null,\n\n      // debug: always show what is stored\n      stored_session_id: storedSessionId,\n      last_session_time_unix: storedAt,\n      last_session_age_ms: ageMs,\n      now_unix: now,\n      max_age_ms: MAX_AGE_MS,\n    },\n  },\n];"
-      },
+      "id": "78d35cac-c5e3-4739-b7ee-de66344976b2",
+      "name": "Get session from global",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         -48,
         -96
       ],
-      "id": "78d35cac-c5e3-4739-b7ee-de66344976b2",
-      "name": "Get session from global"
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\n\nconst MAX_AGE_MS = 5 * 60 * 1000;\nconst now = Date.now();\n\nconst storedSessionId = staticData.current_universa_session ?? null;\nconst storedAt = staticData.current_universa_session_time_unix ?? null;\n\nconst ageMs = storedAt ? now - storedAt : null;\nconst reusable = Boolean(storedSessionId && storedAt && ageMs <= MAX_AGE_MS);\n\nreturn [\n  {\n    json: {\n      reusable,\n\n      // business output\n      session_id: reusable ? storedSessionId : null,\n\n      // debug: always show what is stored\n      stored_session_id: storedSessionId,\n      last_session_time_unix: storedAt,\n      last_session_age_ms: ageMs,\n      now_unix: now,\n      max_age_ms: MAX_AGE_MS,\n    },\n  },\n];"
+      }
     },
     {
-      "parameters": {
-        "jsCode": "const fromStored = $input.first().json.stored_session_id ?? null;\n\nlet fromNew = null;\ntry {\n  fromNew = $('save session to global').item.json.session_id ?? null;\n} catch (e) {\n  fromNew = null;\n}\n\nif (!fromStored && !fromNew) {\n  throw new Error('No session_id available: neither reused nor newly created');\n}\n\nreturn [\n  {\n    json: {\n      session_id: fromStored || fromNew,\n      source: fromStored ? 'reused' : 'new',\n    },\n  },\n];"
-      },
+      "id": "b7c51ef7-445d-4039-9215-f1e7aa87b9c0",
+      "name": "Code in JavaScript",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         2160,
         -160
       ],
-      "id": "b7c51ef7-445d-4039-9215-f1e7aa87b9c0",
-      "name": "Code in JavaScript"
+      "parameters": {
+        "jsCode": "const fromStored = $input.first().json.stored_session_id ?? null;\n\nlet fromNew = null;\ntry {\n  fromNew = $('save session to global').first().json.session_id ?? null;\n} catch (e) {\n  fromNew = null;\n}\n\nif (!fromStored && !fromNew) {\n  throw new Error('No session_id available: neither reused nor newly created');\n}\n\nreturn [\n  {\n    json: {\n      session_id: fromStored || fromNew,\n      source: fromStored ? 'reused' : 'new',\n    },\n  },\n];"
+      }
     },
     {
-      "parameters": {
-        "jsCode": "const docs = $input.first().json.documents;\n\nif (!Array.isArray(docs) || docs.length === 0) {\n  throw new Error('documents is missing or empty');\n}\n\nreturn docs.map((doc) => {\n  if (!doc.filename || !doc.content_base64) {\n    throw new Error('Document missing filename or content_base64');\n  }\n\n  const base64 = String(doc.content_base64).replace(/^data:.*?;base64,/, '');\n\n  return {\n    json: {\n      filename: doc.filename,\n      date: doc.date ?? null,\n    },\n    binary: {\n      data: {\n        data: base64,\n        fileName: doc.filename,\n        mimeType: 'application/pdf',\n      },\n    },\n  };\n});"
-      },
+      "id": "41023058-b6da-458a-9f95-3009a9de0667",
+      "name": "extract files",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
+      "alwaysOutputData": true,
       "position": [
         2928,
         -336
       ],
-      "id": "41023058-b6da-458a-9f95-3009a9de0667",
-      "name": "extract files",
-      "alwaysOutputData": true
+      "parameters": {
+        "jsCode": "const docs = $input.first().json.documents;\n\nif (!Array.isArray(docs) || docs.length === 0) {\n  throw new Error('documents is missing or empty');\n}\n\nreturn docs.map((doc) => {\n  if (!doc.filename || !doc.content_base64) {\n    throw new Error('Document missing filename or content_base64');\n  }\n\n  const base64 = String(doc.content_base64).replace(/^data:.*?;base64,/, '');\n\n  return {\n    json: {\n      filename: doc.filename,\n      date: doc.date ?? null,\n    },\n    binary: {\n      data: {\n        data: base64,\n        fileName: doc.filename,\n        mimeType: 'application/pdf',\n      },\n    },\n  };\n});"
+      }
     },
     {
+      "id": "66813991-359f-47a0-a30f-4570c45024eb",
+      "name": "gibt es noch gültige session?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        208,
+        -272
+      ],
       "parameters": {
         "conditions": {
           "options": {
-            "version": 3,
-            "leftValue": "",
             "caseSensitive": true,
-            "typeValidation": "strict"
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
           },
           "conditions": [
             {
@@ -300,17 +310,18 @@
           "combinator": "and"
         },
         "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
-      "position": [
-        208,
-        -272
-      ],
-      "id": "66813991-359f-47a0-a30f-4570c45024eb",
-      "name": "gibt es noch gültige session?"
+      }
     },
     {
+      "id": "06479a04-5c9e-4138-a1a1-1e3cbc05e111",
+      "name": "Upload file",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "onError": "continueErrorOutput",
+      "position": [
+        4336,
+        -240
+      ],
       "parameters": {
         "driveId": {
           "__rl": true,
@@ -324,49 +335,49 @@
         },
         "options": {}
       },
-      "type": "n8n-nodes-base.googleDrive",
-      "typeVersion": 3,
-      "position": [
-        4336,
-        -240
-      ],
-      "id": "06479a04-5c9e-4138-a1a1-1e3cbc05e111",
-      "name": "Upload file",
       "credentials": {
         "googleDriveOAuth2Api": {
           "name": "Google Drive"
         }
-      },
-      "onError": "continueErrorOutput"
+      }
     },
     {
-      "parameters": {
-        "options": {}
-      },
+      "id": "70209a60-7708-43d1-9734-397b94f79bf9",
+      "name": "Loop Over Items",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
+      "alwaysOutputData": false,
       "position": [
         3120,
         -336
       ],
-      "id": "70209a60-7708-43d1-9734-397b94f79bf9",
-      "name": "Loop Over Items",
-      "alwaysOutputData": false
+      "parameters": {
+        "options": {}
+      }
     },
     {
-      "parameters": {
-        "jsCode": "return [{\n  json: {\n    itemIndex: $itemIndex,\n    jsonFilename: $json.filename,\n    binaryFilename: $binary?.data?.fileName ?? null,\n  }\n}];"
-      },
+      "id": "d80862e2-1c57-4db6-a54f-853383059b39",
+      "name": "debug filename",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         3392,
         -320
       ],
-      "id": "d80862e2-1c57-4db6-a54f-853383059b39",
-      "name": "debug filename"
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    itemIndex: $itemIndex,\n    jsonFilename: $json.filename,\n    binaryFilename: $binary?.data?.fileName ?? null,\n  }\n}];"
+      }
     },
     {
+      "id": "463840d1-ff1c-4e91-9faa-58f2f5a6c02f",
+      "name": "Search files and folders",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "alwaysOutputData": true,
+      "position": [
+        3600,
+        -320
+      ],
       "parameters": {
         "resource": "fileFolder",
         "queryString": "={{ $json.jsonFilename }}",
@@ -381,15 +392,6 @@
         },
         "options": {}
       },
-      "type": "n8n-nodes-base.googleDrive",
-      "typeVersion": 3,
-      "position": [
-        3600,
-        -320
-      ],
-      "id": "463840d1-ff1c-4e91-9faa-58f2f5a6c02f",
-      "name": "Search files and folders",
-      "alwaysOutputData": true,
       "credentials": {
         "googleDriveOAuth2Api": {
           "name": "Google Drive"
@@ -397,6 +399,14 @@
       }
     },
     {
+      "id": "f59fea2f-a65d-440a-b48e-58e29a807a03",
+      "name": "documents not empty",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2688,
+        -288
+      ],
       "parameters": {
         "conditions": {
           "options": {
@@ -420,24 +430,24 @@
         },
         "looseTypeValidation": true,
         "options": {}
-      },
+      }
+    },
+    {
+      "id": "71903464-8a81-4a03-a8f1-03e08c4a2877",
+      "name": "file exists already",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        2688,
-        -288
+        3808,
+        -320
       ],
-      "id": "f59fea2f-a65d-440a-b48e-58e29a807a03",
-      "name": "documents not empty"
-    },
-    {
       "parameters": {
         "conditions": {
           "options": {
-            "version": 3,
-            "leftValue": "",
             "caseSensitive": true,
-            "typeValidation": "strict"
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
           },
           "conditions": [
             {
@@ -453,30 +463,30 @@
           "combinator": "and"
         },
         "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
-      "position": [
-        3808,
-        -320
-      ],
-      "id": "71903464-8a81-4a03-a8f1-03e08c4a2877",
-      "name": "file exists already"
+      }
     },
     {
-      "parameters": {
-        "mode": "chooseBranch"
-      },
+      "id": "7a8727d4-393a-4e50-b342-14958160b0b4",
+      "name": "Merge",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
         4128,
         -448
       ],
-      "id": "7a8727d4-393a-4e50-b342-14958160b0b4",
-      "name": "Merge"
+      "parameters": {
+        "mode": "chooseBranch"
+      }
     },
     {
+      "id": "gmail-trigger-universa",
+      "name": "Gmail Trigger - uniVersa Benachrichtigung",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -416,
+        176
+      ],
       "parameters": {
         "pollTimes": {
           "item": [
@@ -490,14 +500,6 @@
           "sender": "noreply@uniVersa.de"
         }
       },
-      "id": "gmail-trigger-universa",
-      "name": "Gmail Trigger - uniVersa Benachrichtigung",
-      "type": "n8n-nodes-base.gmailTrigger",
-      "typeVersion": 1.3,
-      "position": [
-        -416,
-        176
-      ],
       "credentials": {
         "gmailOAuth2": {
           "name": "Gmail"
@@ -505,6 +507,14 @@
       }
     },
     {
+      "id": "84394a48-2337-46c7-8ccd-88b7ba80579b",
+      "name": "Call 'universa process downloaded settlement statements'",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        3328,
+        -496
+      ],
       "parameters": {
         "workflowId": {
           "__rl": true,
@@ -521,15 +531,66 @@
           "convertFieldsToString": true
         },
         "options": {}
-      },
-      "type": "n8n-nodes-base.executeWorkflow",
-      "typeVersion": 1.3,
+      }
+    },
+    {
+      "id": "713bbadc-74f6-4ee5-ab09-93377f6234f8",
+      "name": "PIN-Mail: noch Versuche übrig?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
       "position": [
-        3328,
-        -496
+        1600,
+        96
       ],
-      "id": "84394a48-2337-46c7-8ccd-88b7ba80579b",
-      "name": "Call 'universa process downloaded settlement statements'"
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "06bbc08b-32e5-4d00-8499-1d9ad4bccfb9",
+              "leftValue": "={{ $runIndex }}",
+              "rightValue": 6,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "226c5fe5-76ac-4cda-b3ad-17d718159b57",
+      "name": "PIN-Mail erneut abwarten",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1344,
+        256
+      ],
+      "parameters": {
+        "amount": 20
+      }
+    },
+    {
+      "id": "cfc0045d-3298-46b1-84df-880972b9f71d",
+      "name": "PIN-Mail nicht gefunden",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1856,
+        160
+      ],
+      "parameters": {
+        "errorMessage": "Universa: keine neue PIN-Mail innerhalb von ~150 s nach dem Login gefunden (7 Versuche). Die Login-Sitzung verfällt nach 5 Minuten - Lauf bitte manuell wiederholen."
+      }
     }
   ],
   "connections": {
@@ -618,6 +679,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "PIN-Mail: noch Versuche übrig?",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -626,6 +694,13 @@
         [
           {
             "node": "time email after 2fa trigger",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PIN-Mail: noch Versuche übrig?",
             "type": "main",
             "index": 0
           }
@@ -795,6 +870,35 @@
         [
           {
             "node": "Get session from global",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PIN-Mail: noch Versuche übrig?": {
+      "main": [
+        [
+          {
+            "node": "PIN-Mail erneut abwarten",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PIN-Mail nicht gefunden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PIN-Mail erneut abwarten": {
+      "main": [
+        [
+          {
+            "node": "Get many messages",
             "type": "main",
             "index": 0
           }

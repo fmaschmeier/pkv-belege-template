@@ -2,6 +2,16 @@
   "name": "universa parse and upload PKV invoices",
   "nodes": [
     {
+      "id": "476f25b3-4c98-4823-af49-4af5a754ff93",
+      "name": "Google Drive Trigger",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "position": [
+        1136,
+        352
+      ],
       "parameters": {
         "pollTimes": {
           "item": [
@@ -21,16 +31,6 @@
         "event": "fileCreated",
         "options": {}
       },
-      "type": "n8n-nodes-base.googleDriveTrigger",
-      "typeVersion": 1,
-      "position": [
-        1136,
-        352
-      ],
-      "id": "476f25b3-4c98-4823-af49-4af5a754ff93",
-      "name": "Google Drive Trigger",
-      "retryOnFail": true,
-      "waitBetweenTries": 5000,
       "credentials": {
         "googleDriveOAuth2Api": {
           "name": "Google Drive"
@@ -38,6 +38,16 @@
       }
     },
     {
+      "id": "cc3dc91d-bae8-4887-b7c8-be5188df017b",
+      "name": "Download file",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "position": [
+        2032,
+        304
+      ],
       "parameters": {
         "operation": "download",
         "fileId": {
@@ -47,16 +57,6 @@
         },
         "options": {}
       },
-      "type": "n8n-nodes-base.googleDrive",
-      "typeVersion": 3,
-      "position": [
-        2032,
-        304
-      ],
-      "id": "cc3dc91d-bae8-4887-b7c8-be5188df017b",
-      "name": "Download file",
-      "retryOnFail": true,
-      "waitBetweenTries": 5000,
       "credentials": {
         "googleDriveOAuth2Api": {
           "name": "Google Drive"
@@ -64,6 +64,14 @@
       }
     },
     {
+      "id": "664d5524-026b-49da-a9d4-f8136dfd4ef6",
+      "name": "Anthropic document analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2464,
+        304
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://api.anthropic.com/v1/messages",
@@ -87,14 +95,6 @@
         "jsonBody": "=  {{ JSON.stringify($json.requestBody) }} ",
         "options": {}
       },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        2464,
-        304
-      ],
-      "id": "664d5524-026b-49da-a9d4-f8136dfd4ef6",
-      "name": "Anthropic document analysis",
       "credentials": {
         "anthropicApi": {
           "name": "Anthropic"
@@ -102,6 +102,14 @@
       }
     },
     {
+      "id": "bf22f43a-8dd3-4884-8fb0-74dabad3bb8d",
+      "name": "pdf-file and PKVB in filename",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1344,
+        352
+      ],
       "parameters": {
         "conditions": {
           "options": {
@@ -135,36 +143,36 @@
         },
         "looseTypeValidation": true,
         "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
-      "position": [
-        1344,
-        352
-      ],
-      "id": "bf22f43a-8dd3-4884-8fb0-74dabad3bb8d",
-      "name": "pdf-file and PKVB in filename"
+      }
     },
     {
-      "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "// Für JEDES Item einzeln ausführen\nconst item = $input.item;\n\n// WICHTIG: $itemIndex statt 0 verwenden!\nconst binaryData = await this.helpers.getBinaryDataBuffer($itemIndex, 'data');\nconst base64String = binaryData.toString('base64');\n\n// JSON Body für Claude API bauen\nconst requestBody = {\n  model: \"claude-sonnet-4-5\",\n  max_tokens: 1024,\n  messages: [\n    {\n      role: \"user\",\n      content: [\n        {\n          type: \"document\",\n          source: {\n            type: \"base64\",\n            media_type: \"application/pdf\",\n            data: base64String\n          }\n        },\n        {\n          type: \"text\",\n          text: `Analysiere dieses PDF einer deutschen Rechnung/eines Belegs und extrahiere folgende Informationen als JSON:\n\n{\n  \"receipt_type\": \"arzt|rezept|pflege|hilfsmittel|sonstige\",\n  \"provider_name\": \"Name des Anbieters/Praxis/Apotheke\",\n  \"invoice_number\": \"Rechnungsnummer falls vorhanden\",\n  \"invoice_date\": \"YYYY-MM-DD\",\n  \"invoice_amount\": 123.45,\n  \"insured_person\": \"Name der behandelten/versicherten Person\",\n  \"description\": \"Kurze Beschreibung der Leistung\",\n  \"due_date\": \"YYYY-MM-DD falls angegeben, sonst null\",\n  \"payment_recipient\": \"Name des Zahlungsempfängers für Überweisung\",\n  \"payment_iban\": \"IBAN ohne Leerzeichen (z.B. DE89370400440532013000)\",\n  \"payment_reference\": \"Verwendungszweck falls angegeben\"\n}\n\nRegeln:\n- receipt_type: \"arzt\" für Ärzte/Therapeuten/Kliniken, \"rezept\" für Apotheken, \"pflege\" für Pflegedienste/Lebenshilfe, \"hilfsmittel\" für Sanitätshäuser/Optiker/Hörgeräte\n- invoice_amount: Der Gesamtbetrag als Zahl (z.B. 48.24, nicht \"48,24 €\")\n- payment_recipient: Der Kontoinhaber/Zahlungsempfänger für die Überweisung. Oft identisch mit provider_name, kann aber auch eine privatärztliche Verrechnungsstelle (PVS) o.ä. sein wenn über Abrechnungsstelle\n- payment_iban: IBAN ohne Leerzeichen, nur Großbuchstaben und Zahlen. Deutsche IBANs beginnen mit \"DE\" und haben 22 Zeichen\n- payment_reference: Vorgegebener Verwendungszweck falls auf der Rechnung angegeben\n- Wenn ein Feld nicht erkennbar ist, setze null\n- Antworte NUR mit dem JSON, keine Erklärungen`\n        }\n      ]\n    }\n  ]\n};\n\nreturn {\n  json: {\n    requestBody: requestBody,\n    fileName: item.binary.data.fileName\n  },\n  binary: item.binary\n};"
-      },
+      "id": "4f8a1405-3c65-416e-bc7f-abc8569c6dea",
+      "name": "prepare file and metadata for Anthropic",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         2224,
         304
       ],
-      "id": "4f8a1405-3c65-416e-bc7f-abc8569c6dea",
-      "name": "prepare file and metadata for Anthropic"
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Für JEDES Item einzeln ausführen\nconst item = $input.item;\n\n// WICHTIG: $itemIndex statt 0 verwenden!\nconst binaryData = await this.helpers.getBinaryDataBuffer($itemIndex, 'data');\nconst base64String = binaryData.toString('base64');\n\n// JSON Body für Claude API bauen\nconst requestBody = {\n  model: \"claude-sonnet-4-5\",\n  max_tokens: 1024,\n  messages: [\n    {\n      role: \"user\",\n      content: [\n        {\n          type: \"document\",\n          source: {\n            type: \"base64\",\n            media_type: \"application/pdf\",\n            data: base64String\n          }\n        },\n        {\n          type: \"text\",\n          text: `Analysiere dieses PDF einer deutschen Rechnung/eines Belegs und extrahiere folgende Informationen als JSON:\n\n{\n  \"receipt_type\": \"arzt|rezept|pflege|hilfsmittel|sonstige\",\n  \"provider_name\": \"Name des Anbieters/Praxis/Apotheke\",\n  \"invoice_number\": \"Rechnungsnummer falls vorhanden\",\n  \"invoice_date\": \"YYYY-MM-DD\",\n  \"invoice_amount\": 123.45,\n  \"insured_person\": \"Name der behandelten/versicherten Person\",\n  \"description\": \"Kurze Beschreibung der Leistung\",\n  \"due_date\": \"YYYY-MM-DD falls angegeben, sonst null\",\n  \"payment_recipient\": \"Name des Zahlungsempfängers für Überweisung\",\n  \"payment_iban\": \"IBAN ohne Leerzeichen (z.B. DE89370400440532013000)\",\n  \"payment_reference\": \"Verwendungszweck falls angegeben\"\n}\n\nRegeln:\n- receipt_type: \"arzt\" für Ärzte/Therapeuten/Kliniken, \"rezept\" für Apotheken, \"pflege\" für Pflegedienste/Lebenshilfe, \"hilfsmittel\" für Sanitätshäuser/Optiker/Hörgeräte\n- invoice_amount: Der Gesamtbetrag als Zahl (z.B. 48.24, nicht \"48,24 €\")\n- payment_recipient: Der Kontoinhaber/Zahlungsempfänger für die Überweisung. Oft identisch mit provider_name, kann aber auch eine privatärztliche Verrechnungsstelle (PVS) o.ä. sein wenn über Abrechnungsstelle\n- payment_iban: IBAN ohne Leerzeichen, nur Großbuchstaben und Zahlen. Deutsche IBANs beginnen mit \"DE\" und haben 22 Zeichen\n- payment_reference: Vorgegebener Verwendungszweck falls auf der Rechnung angegeben\n- Wenn ein Feld nicht erkennbar ist, setze null\n- Antworte NUR mit dem JSON, keine Erklärungen`\n        }\n      ]\n    }\n  ]\n};\n\nreturn {\n  json: {\n    requestBody: requestBody,\n    fileName: item.binary.data.fileName\n  },\n  binary: item.binary\n};"
+      }
     },
     {
+      "id": "ec8b6916-864e-4cd7-a6a4-5c24b7cd898f",
+      "name": "get supabase user token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1568,
+        288
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://DEIN-PROJEKT.supabase.co/auth/v1/token?grant_type=password",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "genericAuthType": "httpCustomAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -176,41 +184,38 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "  {                                                                                                              \n    \"email\": \"app-benutzer@example.com\",                                                                                   \n    \"password\": \"APP-PASSWORT\"                                                                                  \n  }  ",
+        "jsonBody": "{}",
         "options": {}
       },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        1568,
-        288
-      ],
-      "id": "ec8b6916-864e-4cd7-a6a4-5c24b7cd898f",
-      "name": "get supabase user token",
       "credentials": {
-        "httpBearerAuth": {
-          "name": "Downloader Bearer-Token"
-        },
-        "httpHeaderAuth": {
-          "name": "Supabase apikey (Header)"
+        "httpCustomAuth": {
+          "name": "Supabase App-Login (Custom Auth)"
         }
       }
     },
     {
-      "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "// Claude Antwort parsen                                                                                       \n  const claudeResponse = $input.item.json;                                                                       \n  const textContent = claudeResponse.content[0].text;                                                            \n                                                                                                                 \n  // JSON aus dem Markdown-Block extrahieren                                                                     \n  let extractedData;                                                                                             \n  try {                                                                                                          \n    const jsonString = textContent.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();                     \n    extractedData = JSON.parse(jsonString);                                                                      \n  } catch (e) {                                                                                                  \n    throw new Error('Konnte JSON nicht parsen: ' + e.message);                                                   \n  }                                                                                                              \n                                                                                                                 \n  // Binary-Daten vom Download Node durchreichen                                                                 \n  const downloadNode = $('Download file').item;                                                                  \n  const binaryData = downloadNode.binary;                                                                        \n                                                                                                                 \n  return {                                                                                                       \n    json: {                                                                                                      \n      extractedData: extractedData,                                                                              \n      dataString: JSON.stringify(extractedData)                                                                  \n    },                                                                                                           \n    binary: binaryData                                                                                           \n  };                                                                                                             \n       "
-      },
+      "id": "64f38da3-f1b1-4e80-978d-eb5adc245467",
+      "name": "prepare anthropic response for upload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         2608,
         288
       ],
-      "id": "64f38da3-f1b1-4e80-978d-eb5adc245467",
-      "name": "prepare anthropic response for upload"
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Claude Antwort parsen                                                                                       \n  const claudeResponse = $input.item.json;                                                                       \n  const textContent = claudeResponse.content[0].text;                                                            \n                                                                                                                 \n  // JSON aus dem Markdown-Block extrahieren                                                                     \n  let extractedData;                                                                                             \n  try {                                                                                                          \n    const jsonString = textContent.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();                     \n    extractedData = JSON.parse(jsonString);                                                                      \n  } catch (e) {                                                                                                  \n    throw new Error('Konnte JSON nicht parsen: ' + e.message);                                                   \n  }                                                                                                              \n                                                                                                                 \n  // Binary-Daten vom Download Node durchreichen                                                                 \n  const downloadNode = $('Download file').item;                                                                  \n  const binaryData = downloadNode.binary;                                                                        \n                                                                                                                 \n  return {                                                                                                       \n    json: {                                                                                                      \n      extractedData: extractedData,                                                                              \n      dataString: JSON.stringify(extractedData)                                                                  \n    },                                                                                                           \n    binary: binaryData                                                                                           \n  };                                                                                                             \n       "
+      }
     },
     {
+      "id": "56664ce0-3898-483a-82f6-d78ee34c40ab",
+      "name": "upload files to processor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2816,
+        288
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://DEINE-API.run.app/receipts/import",
@@ -244,17 +249,19 @@
           ]
         },
         "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        2816,
-        288
-      ],
-      "id": "56664ce0-3898-483a-82f6-d78ee34c40ab",
-      "name": "upload files to processor"
+      }
     },
     {
+      "id": "755a7cce-5e82-47c8-af21-ee530e97d9a2",
+      "name": "Move file",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "position": [
+        3024,
+        288
+      ],
       "parameters": {
         "operation": "move",
         "fileId": {
@@ -275,16 +282,6 @@
           "cachedResultUrl": "https://drive.google.com/drive/folders/ORDNER-ID-BELEGE-VERARBEITET"
         }
       },
-      "type": "n8n-nodes-base.googleDrive",
-      "typeVersion": 3,
-      "position": [
-        3024,
-        288
-      ],
-      "id": "755a7cce-5e82-47c8-af21-ee530e97d9a2",
-      "name": "Move file",
-      "retryOnFail": true,
-      "waitBetweenTries": 5000,
       "credentials": {
         "googleDriveOAuth2Api": {
           "name": "Google Drive"
@@ -292,30 +289,30 @@
       }
     },
     {
-      "parameters": {
-        "options": {}
-      },
+      "id": "ae1ddc23-95b3-4c74-b4bf-9f8af5582115",
+      "name": "Loop Over Items",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
         1792,
         288
       ],
-      "id": "ae1ddc23-95b3-4c74-b4bf-9f8af5582115",
-      "name": "Loop Over Items"
+      "parameters": {
+        "options": {}
+      }
     },
     {
-      "parameters": {
-        "amount": 10
-      },
+      "id": "7f81949f-caed-4db3-8c02-51a61de0c466",
+      "name": "Wait",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
         3232,
         288
       ],
-      "id": "7f81949f-caed-4db3-8c02-51a61de0c466",
-      "name": "Wait"
+      "parameters": {
+        "amount": 10
+      }
     }
   ],
   "connections": {

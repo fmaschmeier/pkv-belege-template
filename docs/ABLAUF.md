@@ -54,8 +54,9 @@ Sie haben eine neue Nachricht". Darauf reagiert n8n (zusätzlich täglich um 04:
 
 1. Der [Downloader](../downloader/README.md) meldet sich per Browser im Portal an. Das Portal
    schickt eine PIN per Mail.
-2. n8n wartet 30 Sekunden, liest die PIN aus dieser Mail und schließt den Login ab. Eine
-   Sitzung wird 5 Minuten lang wiederverwendet.
+2. n8n wartet 30 Sekunden, liest die PIN aus dieser Mail und schließt den Login ab. Kommt die
+   Mail später, schaut n8n bis zu sieben Mal nach (rund 150 Sekunden). Eine Sitzung wird
+   5 Minuten lang wiederverwendet.
 3. Alle Dokumente der letzten 4 Tage werden geholt. Was nicht schon im Ordner „verarbeitet"
    liegt, kommt in den Abrechnungs-Eingang.
 
@@ -70,10 +71,14 @@ Namen trägt:
    Position stehen darin Belegnummer, Person, Leistungserbringer, Zeitraum, Rechnungsbetrag,
    Tarif, korrigierter und zurückgestellter Betrag, Eigenanteil, Selbstbeteiligung und
    Erstattung. Kosten laut Erfahrung 7 bis 10 pdf.co-Credits je Abrechnung.
-2. Die Datei wandert in „verarbeitet". Andere Dokumente aus dem Portal, etwa Briefe, landen
-   dort ohne Auslesen.
+2. Die Datei wandert in „verarbeitet".
 3. Hat die Versicherung zu einzelnen Positionen Hinweise geschrieben, kommt eine Mail mit der
    PDF im Anhang.
+
+**Alle anderen Dokumente** aus dem Portal (Briefe, Angebote, Bescheinigungen, Hinweise zur
+Datensicherheit) liest die App nicht. n8n schickt sie als PDF per Mail und legt sie erst danach
+ab. Ohne diese Weiche gingen solche Schreiben unbemerkt in den Ordner „verarbeitet" – samt
+Fristen, etwa für befristete Angebote zur Anpassung des Vertrags.
 
 ## 6. Abgleich (Web-App)
 
