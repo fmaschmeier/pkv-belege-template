@@ -1,5 +1,5 @@
 # Use Playwright's official image which includes browsers
-FROM mcr.microsoft.com/playwright/python:v1.41.0-jammy
+FROM mcr.microsoft.com/playwright/python:v1.55.0-jammy
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
