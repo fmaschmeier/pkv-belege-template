@@ -52,7 +52,7 @@ python samples/verify_samples.py
 
 Das Prüfskript lässt beide Parser offline gegen die Beispiele laufen und vergleicht jedes Feld
 mit den Soll-Werten aus `samples/manifest.json`. Aktueller Stand: Abrechnungen 3 von 3
-fehlerfrei, Belege 117 von 120 Feldern.
+fehlerfrei, Belege 122 von 126 Feldern.
 
 Das ganze System einrichten: [`docs/EINRICHTUNG.md`](docs/EINRICHTUNG.md).
 

@@ -7,9 +7,9 @@ echten Personen, Praxen, Beträge oder Bankverbindungen enthalten. Jede Seite tr
 
 | Ordner / Datei | Inhalt |
 |---|---|
-| `belege/` | 21 Belege mit Textebene, Dateinamen im Schema `NNN_Anbieter_Betrag_Person_PKVB.pdf` |
-| `scans/` | dieselben 21 Belege als reine Bild-PDFs, wie ein Handy-Scan (Eingabe für den Claude-Vision-Weg) |
-| `abrechnungen/` | 3 Leistungsabrechnungen, die genau diese Belege erstatten, und 1 Versichererbrief; dazu pdf.co-Fixtures (`*.pdfco-header.txt`, `*.pdfco.csv`) |
+| `belege/` | 22 Belege mit Textebene, Dateinamen im Schema `NNN_Anbieter_Betrag_Person_PKVB.pdf` |
+| `scans/` | dieselben 22 Belege als reine Bild-PDFs, wie ein Handy-Scan (Eingabe für den Claude-Vision-Weg) |
+| `abrechnungen/` | 3 Leistungsabrechnungen, die die Belege der Einreichungen 301 bis 303 erstatten, und 1 Versichererbrief; die Krankenfahrt (304) ist eingereicht und noch nicht abgerechnet; dazu pdf.co-Fixtures (`*.pdfco-header.txt`, `*.pdfco.csv`) |
 | `manifest.json` | Soll-Werte je Dokument: Belegart, Anbieter, Zahlungsempfänger, IBAN, Rechnungsnummer, Datum, Betrag, Person, Zuordnung zur Abrechnung |
 | `generate_samples.py` | erzeugt alles neu, bei jedem Lauf byte-identisch |
 | `verify_samples.py` | lässt die Parser dieses Repos offline gegen die Beispiele laufen |
@@ -34,7 +34,8 @@ Für den Dateinamen-Abgleich: `INSURED_PERSONS=Jonas,Miriam,Mila,Ben,Helga`.
 - **Belegarten** wie in echten Einreichungen: Arzt direkt und über Verrechnungsstelle,
   Zahnarzt über Abrechnungsgesellschaft, Labor, Psychotherapie, Klinikambulanz, Heilmittel,
   Apotheken-Kassenbon, Optiker, Sanitätshaus, Pflegedienst, Entlastungsdienst, das
-  Verhinderungspflege-Formular des Versicherers.
+  Verhinderungspflege-Formular des Versicherers, eine Krankenfahrt (Belegart „sonstige“).
+  Alle fünf Belegarten der App sind vertreten.
 - **Nachgerechnete Beträge**: GOÄ-Punktwert 5,82873 Cent, GOZ-Punktwert 5,62421 Cent,
   Einzelbetrag = Punkte × Punktwert × Faktor. Eine Position liegt über dem Schwellenwert
   (Faktor 3,5 mit Begründung).
@@ -72,14 +73,14 @@ aus ihrem Cache; das Skript legt die Fixtures in einem temporären Cache ab.
 |---|---|
 | Leistungsabrechnungen: Kopf, Summen, alle Positionen | 3 von 3 fehlerfrei |
 | Versichererbrief als Nicht-Abrechnung erkannt | ja |
-| Scans ohne Textebene | 21 von 21 |
-| Belege, regelbasierter Parser | 117 von 120 Feldern |
+| Scans ohne Textebene | 22 von 22 |
+| Belege, regelbasierter Parser | 122 von 126 Feldern |
 
 Die Abweichungen zeigen Grenzen des regelbasierten Parsers, keine Fehler der Beispiele:
 
 - Steht „Verordnung vom …" oder „Brillenglasbestimmung vom …" vor dem Rechnungsdatum, wird
   jenes Datum als Rechnungsdatum gelesen (Ergotherapie, Optiker).
-- „Rechnungsnummer:" wird nicht erkannt, nur „Rechnungs-Nr.".
+- „Rechnungsnummer:" wird nicht erkannt, nur „Rechnungs-Nr." (Ergotherapie, Krankenfahrt).
 - Hinweise zur Abrechnung: Der Parser behält nur den Code („156:"), der Text in der
   Nachbarspalte geht verloren (0 von 10 Texten).
 - Das Dateinamenschema `NNN_Anbieter_Betrag_Person_PKVB` erkennt `parse_filename` nicht;

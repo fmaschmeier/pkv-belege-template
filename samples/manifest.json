@@ -448,6 +448,27 @@
       "description": null,
       "settlement_number": "R/26/134",
       "receipt_number": "B/26/1404"
+    },
+    {
+      "file": "belege/304_Krankenfahrt_59.20_Helga_PKVB.pdf",
+      "scan_file": "scans/304_Krankenfahrt_59.20_Helga_PKVB.pdf",
+      "submission_date": "2026-09-29",
+      "filename_person": "Helga",
+      "filename_provider": "Krankenfahrt",
+      "receipt_type": "sonstige",
+      "provider_name": "Krankenfahrten Musterstadt GmbH",
+      "payment_recipient": "Krankenfahrten Musterstadt GmbH",
+      "payment_iban": "DE71000000004711020098",
+      "invoice_number": "KF-26-0917",
+      "invoice_date": "2026-09-25",
+      "invoice_amount": 59.2,
+      "insured_person": "Helga Beispiel",
+      "insured_birthdate": "1942-02-02",
+      "treatment_period": "23.09.2026",
+      "due_date": "2026-10-25",
+      "description": null,
+      "settlement_number": null,
+      "receipt_number": null
     }
   ],
   "settlements": [

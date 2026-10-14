@@ -6,12 +6,13 @@ Erzeugt einen frei erfundenen Datensatz, der strukturell echten Einreichungen
 entspricht, ohne echte Personen, Praxen, Beträge oder Bankverbindungen zu
 enthalten:
 
-  belege/        21 Belege mit Textebene (Arzt, Zahnarzt, Labor, Psychotherapie,
-                 Klinik, Heilmittel, Apotheke, Pflege, Hilfsmittel)
+  belege/        22 Belege mit Textebene (Arzt, Zahnarzt, Labor, Psychotherapie,
+                 Klinik, Heilmittel, Apotheke, Pflege, Hilfsmittel, Krankenfahrt)
   scans/         dieselben Belege als reine Bild-PDFs, wie ein Handy-Scan
                  (Eingabe für den Claude-Vision-Weg)
   abrechnungen/  drei Leistungsabrechnungen des (erfundenen) Versicherers, die
-                 genau diese Belege erstatten, dazu ein Versichererbrief.
+                 die Belege der Einreichungen 301 bis 303 erstatten, dazu ein
+                 Versichererbrief. Einreichung 304 (Krankenfahrt) ist noch offen.
                  Je Abrechnung zwei Fixtures im Format der pdf.co-Ausgabe
                  (*.pdfco-header.txt, *.pdfco.csv), damit parser.py offline läuft.
   manifest.json  Soll-Werte je Dokument (Testorakel für beide Parser)
@@ -150,7 +151,7 @@ def iban_de(account: int, blz: str = "00000000") -> str:
 
 
 # Je Zahlungsempfänger eine eigene IBAN, damit der Zahlungsabgleich eindeutig bleibt
-IBANS = [iban_de(4711000100 + i * 1111) for i in range(18)]
+IBANS = [iban_de(4711000100 + i * 1111) for i in range(19)]
 FAMILY_IBAN = iban_de(4711999900)
 
 KINDERARZT = Org("Kinderarztpraxis Dr. med. Clara Sonnberg",
@@ -202,6 +203,9 @@ PFLEGEDIENST = Org("Pflegedienst Sonnenschein GmbH", ("Ambulante Pflege · Berat
 SANI = Org("Sanitätshaus Musterstadt GmbH", ("Reha-Technik · Orthopädietechnik",),
            "Gewerbering 8", "0123 4574-20", "info@sanitaetshaus-musterstadt.example", IBANS[15],
            tax="Amtsgericht Musterstadt HRB 0006")
+FAHRDIENST = Org("Krankenfahrten Musterstadt GmbH", ("Krankenfahrten · Mietwagen mit Fahrer",),
+                 "Bahnhofsvorplatz 2", "0123 4575-30", "dispo@krankenfahrten-musterstadt.example",
+                 IBANS[18], tax="Amtsgericht Musterstadt HRB 0008")
 VERSICHERER = Org("Beispiel Krankenversicherung a.G.", ("Leistungsservice",),
                   "Musterallee 1", "0123 9876-0", "leistung@beispiel-kv.example", IBANS[17],
                   tax="Amtsgericht Musterstadt HRB 0007")
@@ -283,7 +287,7 @@ class Receipt:
     tag: str
     person: Person
     kind: str               # fee | priced | pharmacy | care_form
-    receipt_type: str       # arzt | rezept | pflege | hilfsmittel
+    receipt_type: str       # arzt | rezept | pflege | hilfsmittel | sonstige
     provider: Org
     invoice_date: date
     lines: list
@@ -651,6 +655,23 @@ def build_receipts() -> list[Receipt]:
                          D("15.00"))],
         settlement_desc="Sanitätshaus Musterstadt, Hilfsmittel",
         parts=[Part("AMB2")]))
+
+    # ---- Einreichung 304 (September 2026) -> noch nicht abgerechnet ----
+    # Belegart "sonstige": weder Arzt noch Apotheke, Pflege oder Hilfsmittel.
+    R.append(Receipt(
+        "krankenfahrt-helga", 304, "Krankenfahrt", HELGA, "priced", "sonstige", FAHRDIENST,
+        d("25.09.2026"), invoice_number="KF-26-0917",
+        extra={"number_label": "Rechnungsnummer", "total_label": "Gesamtbetrag"},
+        intro=["Verordnete Krankenfahrt im Sitzen, Hin- und Rückfahrt."],
+        outro=["Bitte überweisen Sie den Betrag unter Angabe der Rechnungsnummer."],
+        lines=[PriceLine(d("23.09.2026"), "Hinfahrt Musterweg 7 nach Lindenplatz 9, Grundpauschale",
+                         D(1), D("12.00")),
+               PriceLine(d("23.09.2026"), "Hinfahrt, Besetztkilometer", D(6), D("2.10")),
+               PriceLine(d("23.09.2026"), "Rückfahrt Lindenplatz 9 nach Musterweg 7, Grundpauschale",
+                         D(1), D("12.00")),
+               PriceLine(d("23.09.2026"), "Rückfahrt, Besetztkilometer", D(6), D("2.10")),
+               PriceLine(d("23.09.2026"), "Tragehilfe beim Ein- und Aussteigen", D(2), D("5.00"))],
+        settlement_desc="Krankenfahrten Musterstadt, Fahrtkosten"))
 
     return R
 
@@ -1438,7 +1459,8 @@ def main():
     for r in receipts:
         path = DIR_BELEGE / r.filename
         RENDER[r.kind](r, path)
-        submitted = {301: date(2026, 6, 22), 302: date(2026, 7, 31), 303: date(2026, 9, 5)}[r.nnn]
+        submitted = {301: date(2026, 6, 22), 302: date(2026, 7, 31), 303: date(2026, 9, 5),
+                     304: date(2026, 9, 29)}[r.nnn]
         set_metadata(path, path.stem, submitted, "synthetisch (samples/generate_samples.py)")
         scan = None
         if not args.no_scans:
