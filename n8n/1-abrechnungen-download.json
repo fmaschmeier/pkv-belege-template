@@ -41,7 +41,7 @@
         -112
       ],
       "parameters": {
-        "amount": 30
+        "amount": 5
       }
     },
     {
@@ -554,7 +554,7 @@
             {
               "id": "06bbc08b-32e5-4d00-8499-1d9ad4bccfb9",
               "leftValue": "={{ $runIndex }}",
-              "rightValue": 6,
+              "rightValue": 11,
               "operator": {
                 "type": "number",
                 "operation": "lt"
@@ -576,7 +576,7 @@
         256
       ],
       "parameters": {
-        "amount": 20
+        "amount": 5
       }
     },
     {
@@ -589,7 +589,7 @@
         160
       ],
       "parameters": {
-        "errorMessage": "Universa: keine neue PIN-Mail innerhalb von ~150 s nach dem Login gefunden (7 Versuche). Die Login-Sitzung verfällt nach 5 Minuten - Lauf bitte manuell wiederholen."
+        "errorMessage": "Universa: keine neue PIN-Mail innerhalb von ~60 s nach dem Login gefunden (12 Versuche alle 5 s). Die Login-Sitzung liegt nur im Speicher einer Cloud-Run-Instanz und geht verloren, wenn die PIN zu spät kommt - Lauf bitte manuell wiederholen."
       }
     }
   ],

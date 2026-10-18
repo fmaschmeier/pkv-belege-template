@@ -54,8 +54,11 @@ Sie haben eine neue Nachricht". Darauf reagiert n8n (zusätzlich täglich um 04:
 
 1. Der [Downloader](../downloader/README.md) meldet sich per Browser im Portal an. Das Portal
    schickt eine PIN per Mail.
-2. n8n wartet 30 Sekunden, liest die PIN aus dieser Mail und schließt den Login ab. Kommt die
-   Mail später, schaut n8n bis zu sieben Mal nach (rund 150 Sekunden). Eine Sitzung wird
+2. n8n wartet 5 Sekunden, liest die PIN aus dieser Mail und schließt den Login ab. Kommt die
+   Mail später, schaut n8n alle 5 Sekunden nach, bis zu zwölf Mal (rund 60 Sekunden). Die
+   Eile hat einen Grund: Die Anmeldung liegt nur im Speicher der Cloud-Run-Instanz, die den
+   Login gemacht hat, und Cloud Run tauscht Instanzen oft schon nach 20 bis 40 Sekunden aus.
+   Kommt die PIN später, antwortet der Downloader mit „Session not found“. Eine Sitzung wird
    5 Minuten lang wiederverwendet.
 3. Alle Dokumente der letzten 4 Tage werden geholt. Was nicht schon im Ordner „verarbeitet"
    liegt, kommt in den Abrechnungs-Eingang.

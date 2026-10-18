@@ -59,11 +59,13 @@ Sicherung des Workflows. Inhalt des Credentials:
 ## Die 2FA-Anmeldung
 
 Das Kundenportal schickt bei jeder Anmeldung eine PIN per Mail. Workflow 1 startet den Login
-über den Downloader, wartet 30 Sekunden, liest die ungelesenen Mails der Universa, nimmt die
+über den Downloader, wartet 5 Sekunden, liest die ungelesenen Mails der Universa, nimmt die
 nach dem Login-Start eingegangene, daraus die erste sechsstellige Zahl, und schließt den Login
-ab. Ist die PIN-Mail noch nicht da, schaut er bis zu sieben Mal im Abstand von 20 Sekunden
-nach (rund 150 Sekunden) und bricht dann mit einer Fehlermeldung ab, denn die Login-Sitzung
-verfällt nach 5 Minuten. Eine erfolgreiche Sitzung wird 5 Minuten lang wiederverwendet.
+ab. Ist die PIN-Mail noch nicht da, schaut er bis zu zwölf Mal im Abstand von 5 Sekunden nach
+(rund 60 Sekunden) und bricht dann mit einer Fehlermeldung ab. Die kurzen Abstände sind nötig,
+weil die Login-Sitzung nur im Speicher einer Cloud-Run-Instanz liegt und Cloud Run Instanzen
+oft schon nach 20 bis 40 Sekunden austauscht; mit 30 Sekunden Wartezeit scheiterte der Login
+im Oktober 2026 regelmäßig mit „Session not found“. Eine erfolgreiche Sitzung wird 5 Minuten lang wiederverwendet.
 
 Folge: Wer Zugriff auf dieses Postfach und den Downloader hat, kommt ins Kundenportal. Postfach
 und Downloader-Token entsprechend schützen.
