@@ -65,7 +65,7 @@ export default function PdfZoomModal({ url, filename, onClose }: PdfZoomModalPro
 
   // Memoize options to prevent unnecessary reloads
   const documentOptions = useMemo(() => ({
-    cMapUrl: `https://unpkg.com/pdfjs-dist@4.8.69/cmaps/`,
+    cMapUrl: '/cmaps/', // beim Build aus pdfjs-dist kopiert (package.json "build"), kein CDN
     cMapPacked: true,
   }), [])
 
