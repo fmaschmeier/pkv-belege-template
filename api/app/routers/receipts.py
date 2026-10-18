@@ -276,10 +276,11 @@ async def list_receipts(
     # Liqui Saldo = Geld das aktuell "draußen" ist
     # Bezahlt aber noch nicht erstattet = Geld fehlt mir
     # Negativ = so viel Geld habe ich ausgegeben und noch nicht zurückbekommen
+    # Rezepte gelten als bezahlt (Direktzahlung in der Apotheke), auch ohne paid_date
     paid_awaiting_reimbursement = [
         r for r in receipts
         if r.get("status") == "submitted"  # Noch nicht erstattet
-        and r.get("paid_date")  # Aber schon bezahlt
+        and (r.get("paid_date") or r.get("receipt_type") == "rezept")  # Aber schon bezahlt
     ]
     liqui_saldo = -sum(r.get("paid_amount") or r.get("invoice_amount") or 0 for r in paid_awaiting_reimbursement)
 

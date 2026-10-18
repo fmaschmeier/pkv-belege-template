@@ -73,7 +73,7 @@ class ReceiptListResponse(BaseModel):
     overdue_count: int  # Zahlung überfällig (alle Belege, nicht nur offene)
     reimbursement_overdue_count: int = 0  # Erstattung überfällig (>30 Tage)
     unpaid_count: int = 0  # Noch nicht bezahlt (excl. Rezepte)
-    liqui_saldo: float = 0  # Erhaltene Erstattungen minus geleistete Zahlungen
+    liqui_saldo: float = 0  # Minus Summe aller bezahlten, noch nicht erstatteten Belege (Rezepte gelten als bezahlt)
 
 
 class ReceiptUploadResponse(BaseModel):

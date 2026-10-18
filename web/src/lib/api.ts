@@ -541,9 +541,8 @@ export interface ReceiptListResponse {
   overdue_count: number                  // Zahlung überfällig (due_date überschritten, nicht bezahlt)
 
   // === LIQUIDITÄT ===
-  // Erhaltene PKV-Erstattungen minus geleistete Zahlungen an Leistungserbringer
-  // Positiv = mehr erstattet als bezahlt (Geld "drin")
-  // Negativ = mehr bezahlt als erstattet (Geld "draußen")
+  // Minus Summe aller Belege, die bezahlt, aber noch nicht erstattet sind (Rezepte gelten als bezahlt).
+  // Negativ = so viel Geld ist aktuell vorgestreckt ("draußen"); 0 = nichts vorgestreckt
   liqui_saldo: number
 }
 
