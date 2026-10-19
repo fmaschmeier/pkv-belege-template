@@ -28,7 +28,7 @@ Fehlercodes von `POST /login/start`:
 
 | Code | Bedeutung |
 |---|---|
-| 401 | Das Portal lehnt den Login ab (Fehlermeldung auf der Seite), oder das Bearer-Token fehlt bzw. ist falsch. `detail` unterscheidet beides |
+| 401 | Das Portal lehnt den Login ab (Fehlermeldung auf der Seite), oder das Bearer-Token ist falsch. `detail` unterscheidet beides. Fehlt der Authorization-Header ganz, antwortet FastAPI 0.109 mit 403 |
 | 504 | Das Portal hat nicht rechtzeitig geantwortet, etwa weil Login-Seite oder Formular nicht geladen wurden. Im Oktober 2026 lag das an einem zu alten Browser in Playwright |
 | 502 | sonstiger Fehler beim Login |
 
