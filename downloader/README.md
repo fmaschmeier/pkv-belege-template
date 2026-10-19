@@ -24,6 +24,18 @@ Alle außer `/health` verlangen `Authorization: Bearer <BEARER_TOKEN>`.
 
 Eine Sitzung läuft nach `SESSION_TIMEOUT_SECONDS` (Standard 300) ab.
 
+Fehlercodes von `POST /login/start`:
+
+| Code | Bedeutung |
+|---|---|
+| 401 | Das Portal lehnt den Login ab (Fehlermeldung auf der Seite), oder das Bearer-Token fehlt bzw. ist falsch. `detail` unterscheidet beides |
+| 504 | Das Portal hat nicht rechtzeitig geantwortet, etwa weil Login-Seite oder Formular nicht geladen wurden. Im Oktober 2026 lag das an einem zu alten Browser in Playwright |
+| 502 | sonstiger Fehler beim Login |
+
+Die Anmeldung liegt nur im Speicher der Instanz, die `/login/start` bearbeitet hat. Kommt `/login/complete`
+bei einer anderen Instanz an, antwortet der Dienst mit 404 („Session not found“). Deshalb gibt n8n die PIN
+nach wenigen Sekunden ein, siehe [`n8n/README.md`](../n8n/README.md).
+
 ## Konfiguration
 
 | Variable | Inhalt |

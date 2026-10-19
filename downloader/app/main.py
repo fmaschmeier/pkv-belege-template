@@ -81,10 +81,14 @@ async def start_login():
         await session_manager.update_session_status(
             session.session_id, "failed", result.message
         )
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=result.message,
-        )
+        # 401 nur, wenn das Portal den Login ablehnt. Ein Timeout (z. B. Login-Seite lädt nicht,
+        # weil der Browser zu alt ist) ist kein Zugangsdatenfehler – sonst meldet n8n irreführend
+        # "please check your credentials".
+        code = {
+            "rejected": status.HTTP_401_UNAUTHORIZED,
+            "timeout": status.HTTP_504_GATEWAY_TIMEOUT,
+        }.get(result.error_kind, status.HTTP_502_BAD_GATEWAY)
+        raise HTTPException(status_code=code, detail=result.message)
 
     if result.requires_2fa:
         await session_manager.update_session_status(session.session_id, "pending_2fa")

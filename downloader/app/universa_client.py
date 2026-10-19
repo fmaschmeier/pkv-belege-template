@@ -31,6 +31,9 @@ class LoginResult:
     success: bool
     message: str
     requires_2fa: bool = False
+    # Bei Misserfolg: "rejected" (Portal zeigt eine Fehlermeldung, z. B. falsche Zugangsdaten),
+    # "timeout" (Seite oder Formular nicht rechtzeitig da), "error" (sonstiger Fehler)
+    error_kind: Optional[str] = None
 
 
 @dataclass
@@ -97,7 +100,7 @@ class UniversaClient:
             # Check for error message
             error_message = await self._extract_error_message()
             if error_message:
-                return LoginResult(success=False, message=error_message)
+                return LoginResult(success=False, message=error_message, error_kind="rejected")
 
             # Check if somehow logged in without 2FA
             await self.page.wait_for_timeout(2000)
@@ -111,12 +114,13 @@ class UniversaClient:
             return LoginResult(
                 success=False,
                 message="Login failed - 2FA field did not appear",
+                error_kind="error",
             )
 
         except PlaywrightTimeout as e:
-            return LoginResult(success=False, message=f"Timeout during login: {str(e)}")
+            return LoginResult(success=False, message=f"Timeout during login: {str(e)}", error_kind="timeout")
         except Exception as e:
-            return LoginResult(success=False, message=f"Error during login: {str(e)}")
+            return LoginResult(success=False, message=f"Error during login: {str(e)}", error_kind="error")
 
     async def submit_2fa_code(self, code: str) -> LoginResult:
         """
