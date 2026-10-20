@@ -8,7 +8,7 @@ Ablauf in `docs/ABLAUF.md`, Einrichtung in `docs/EINRICHTUNG.md`.
 
 - `api/` FastAPI (Supabase, pdf.co, Claude), Image wird aus dem Repo-Wurzelverzeichnis gebaut
 - `web/` React + Vite + Tailwind; `VITE_*` werden beim Bauen eingesetzt
-- `downloader/` Playwright-Dienst für das Kundenportal (Login mit 2FA, Dokumente holen)
+- `downloader/` Dienst für das Kundenportal (Login mit 2FA, Dokumente holen) über dessen JSON-Aufrufe, ohne Browser; Tests in `downloader/tests/`
 - `n8n/` drei Workflows mit Platzhaltern, siehe `n8n/README.md`
 - `receipt_parser.py`, `parser.py`, `bank_parser.py` Parser; `api/app/services/receipt_parser.py` ist die Kopie für die API
 - `schema.sql` + `migrations/` (in Nummernfolge) = Datenbankstand der laufenden Instanz
@@ -23,6 +23,7 @@ python samples/verify_samples.py      # Parser offline gegen die Beispiele prüf
 pip install -r samples/requirements.txt
 python samples/generate_samples.py    # Beispiele neu erzeugen, byte-identisch
 cd web && npm ci && npm run build     # Typprüfung und Build der Web-App
+cd downloader && pip install -r requirements.txt pytest && pytest -q tests   # Downloader gegen ein nachgebautes Portal
 ```
 
 Nach jeder Änderung an einem Parser `verify_samples.py` laufen lassen. Abrechnungen müssen

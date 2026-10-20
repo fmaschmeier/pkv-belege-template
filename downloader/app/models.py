@@ -17,6 +17,9 @@ class SubmitPinRequest(BaseModel):
 class SubmitPinResponse(BaseModel):
     success: bool
     message: str
+    # Success: new session for the document calls (the portal replaces its session cookie at the PIN step).
+    # Wrong PIN: session for another try.
+    session_id: Optional[str] = None
 
 
 class DocumentInfo(BaseModel):

@@ -33,7 +33,7 @@ Schritt für Schritt in [`docs/ABLAUF.md`](docs/ABLAUF.md).
 | Pfad | Inhalt |
 |---|---|
 | [`n8n/`](n8n/README.md) | drei Workflows: Belege erfassen, Abrechnungen aus dem Portal holen, Abrechnungen verarbeiten und alle übrigen Briefe per Mail weiterleiten |
-| [`downloader/`](downloader/README.md) | Dienst, der sich per Browser (Playwright) mit 2FA im Kundenportal anmeldet und Dokumente holt |
+| [`downloader/`](downloader/README.md) | Dienst, der sich mit 2FA im Kundenportal anmeldet und Dokumente holt, über die JSON-Aufrufe des Portals, ohne Browser |
 | [`api/`](api/) | FastAPI: Belege und Abrechnungen speichern, Abgleich, Bank-Import, SEPA-QR |
 | [`web/`](web/) | React-Oberfläche: Übersicht, Belege, Abrechnungen, Kontobewegungen, Regeln, Erinnerungen nach § 14 VVG |
 | [`receipt_parser.py`](receipt_parser.py), [`parser.py`](parser.py), [`bank_parser.py`](bank_parser.py) | Parser für Belege, Leistungsabrechnungen und Kontoauszüge (CSV im Format des Commerzbank-Exports) |

@@ -1,13 +1,12 @@
-from contextlib import asynccontextmanager
-import asyncio
 import base64
+import traceback
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.responses import Response
 
 from app.auth import verify_bearer_token
 from app.config import get_settings
-from app.session_manager import session_manager
-from app.universa_client import UniversaClient
+from app.portal_client import PortalClient, PortalError
+from app.session_token import Session, seal, unseal
 from app.models import (
     LoginStartResponse,
     SubmitPinRequest,
@@ -21,37 +20,28 @@ from app.models import (
 )
 
 
-async def cleanup_task():
-    """Background task to periodically clean up expired sessions."""
-    while True:
-        await asyncio.sleep(60)  # Run every minute
-        removed = await session_manager.cleanup_expired()
-        if removed > 0:
-            print(f"Cleaned up {removed} expired sessions")
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Lifecycle manager for the FastAPI app."""
-    # Start background cleanup task
-    task = asyncio.create_task(cleanup_task())
-    yield
-    # Shutdown
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
-    # Shutdown browser and cleanup all sessions
-    await session_manager.shutdown()
-
-
 app = FastAPI(
     title="Universa Document Downloader",
     description="API for downloading documents from Universa insurance portal with 2FA support",
-    version="1.0.0",
-    lifespan=lifespan,
+    version="2.0.0",
 )
+
+
+def _session(session_id: str, expected: str) -> Session:
+    """Decrypt the session_id; 404 if unknown or expired, 400 if in the wrong state."""
+    session = unseal(session_id)
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found or expired. Please start a new login.",
+        )
+    if session.status != expected:
+        if expected == "authenticated":
+            detail = f"Session not authenticated. Current status: {session.status}"
+        else:
+            detail = f"Invalid session status: {session.status}. Expected '{expected}'."
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+    return session
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -72,32 +62,23 @@ async def start_login():
     This will initiate login with stored credentials and trigger the 2FA email.
     Returns a session_id that must be used when submitting the PIN.
     """
-    session = await session_manager.create_session()
-
-    client = UniversaClient(session)
-    result = await client.start_login()
+    settings = get_settings()
+    client = PortalClient()
+    result = await client.start_login(settings.universa_username, settings.universa_password)
 
     if not result.success:
-        await session_manager.update_session_status(
-            session.session_id, "failed", result.message
-        )
-        # 401 nur, wenn das Portal den Login ablehnt. Ein Timeout (z. B. Login-Seite lädt nicht,
-        # weil der Browser zu alt ist) ist kein Zugangsdatenfehler – sonst meldet n8n irreführend
-        # "please check your credentials".
+        # 401 only if the portal refuses the login. A timeout is not a credentials problem;
+        # otherwise n8n misleadingly reports "please check your credentials".
         code = {
             "rejected": status.HTTP_401_UNAUTHORIZED,
             "timeout": status.HTTP_504_GATEWAY_TIMEOUT,
         }.get(result.error_kind, status.HTTP_502_BAD_GATEWAY)
         raise HTTPException(status_code=code, detail=result.message)
 
-    if result.requires_2fa:
-        await session_manager.update_session_status(session.session_id, "pending_2fa")
-    else:
-        await session_manager.update_session_status(session.session_id, "authenticated")
-
+    state = "pending_2fa" if result.requires_2fa else "authenticated"
     return LoginStartResponse(
-        session_id=session.session_id,
-        status="pending_2fa" if result.requires_2fa else "authenticated",
+        session_id=seal(client.state, state),
+        status=state,
         message=result.message,
         requires_2fa=result.requires_2fa,
     )
@@ -112,35 +93,20 @@ async def complete_login(request: SubmitPinRequest):
     """
     Complete the login by submitting the 2FA PIN received via email.
 
-    Use the session_id from the /login/start response.
+    Use the session_id from the /login/start response. On success the answer carries a new
+    session_id for the document calls: the portal replaces its session cookie at this step.
+    After a wrong PIN it carries a session_id for another try (the portal's CSRF token moved on).
     """
-    session = await session_manager.get_session(request.session_id)
+    session = _session(request.session_id, "pending_2fa")
+    settings = get_settings()
+    client = PortalClient(session.state)
+    result = await client.submit_pin(settings.universa_username, settings.universa_password, request.pin)
 
-    if session is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or expired. Please start a new login.",
-        )
-
-    if session.status != "pending_2fa":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid session status: {session.status}. Expected 'pending_2fa'.",
-        )
-
-    client = UniversaClient(session)
-    result = await client.submit_2fa_code(request.pin)
-
-    if result.success:
-        await session_manager.update_session_status(
-            request.session_id, "authenticated"
-        )
-    else:
-        await session_manager.update_session_status(
-            request.session_id, "failed", result.message
-        )
-
-    return SubmitPinResponse(success=result.success, message=result.message)
+    return SubmitPinResponse(
+        success=result.success,
+        message=result.message,
+        session_id=seal(client.state, "authenticated" if result.success else "pending_2fa"),
+    )
 
 
 @app.get(
@@ -148,43 +114,24 @@ async def complete_login(request: SubmitPinRequest):
     response_model=DocumentsResponse,
     dependencies=[Depends(verify_bearer_token)],
 )
-async def list_documents(session_id: str):
+async def list_documents(session_id: str, page: int = 0):
     """
-    List available documents for download.
+    List the documents on one page of the inbox (newest first).
 
     Requires an authenticated session.
     """
-    session = await session_manager.get_session(session_id)
-
-    if session is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or expired. Please start a new login.",
-        )
-
-    if session.status != "authenticated":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Session not authenticated. Current status: {session.status}",
-        )
-
-    client = UniversaClient(session)
-
+    session = _session(session_id, "authenticated")
     try:
-        documents = await client.get_documents()
+        documents, _ = await PortalClient(session.state).get_documents(page)
         return DocumentsResponse(
             success=True,
-            documents=[
-                DocumentInfo(id=doc.id, name=doc.name, date=doc.date)
-                for doc in documents
-            ],
+            documents=[DocumentInfo(id=d.id, name=d.name, date=d.date) for d in documents],
         )
-    except Exception as e:
-        return DocumentsResponse(
-            success=False,
-            documents=[],
-            message=str(e),
-        )
+    except PortalError as e:
+        return DocumentsResponse(success=False, documents=[], message=str(e))
+    except Exception as e:  # unexpected answer from the portal; keep n8n's contract
+        traceback.print_exc()
+        return DocumentsResponse(success=False, documents=[], message=f"{type(e).__name__}: {e}")
 
 
 @app.get(
@@ -198,45 +145,28 @@ async def download_recent_documents(session_id: str, max_age_days: int = 3):
 
     Returns documents as base64-encoded PDFs.
     """
-    session = await session_manager.get_session(session_id)
-
-    if session is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or expired. Please start a new login.",
-        )
-
-    if session.status != "authenticated":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Session not authenticated. Current status: {session.status}",
-        )
-
-    client = UniversaClient(session)
-
+    session = _session(session_id, "authenticated")
     try:
-        downloaded = await client.download_recent_documents(max_age_days)
+        downloaded = await PortalClient(session.state).download_recent_documents(max_age_days)
+    except PortalError as e:
+        return DownloadRecentResponse(success=False, documents=[], message=str(e))
+    except Exception as e:  # unexpected answer from the portal; keep n8n's contract
+        traceback.print_exc()
+        return DownloadRecentResponse(success=False, documents=[], message=f"{type(e).__name__}: {e}")
 
-        documents = [
-            DownloadedDocument(
-                filename=filename,
-                date=date,
-                content_base64=base64.b64encode(content).decode('utf-8'),
-            )
-            for content, filename, date in downloaded
-        ]
-
-        return DownloadRecentResponse(
-            success=True,
-            documents=documents,
-            message=f"Downloaded {len(documents)} document(s) from the last {max_age_days} days",
+    documents = [
+        DownloadedDocument(
+            filename=filename,
+            date=date,
+            content_base64=base64.b64encode(content).decode("utf-8"),
         )
-    except Exception as e:
-        return DownloadRecentResponse(
-            success=False,
-            documents=[],
-            message=str(e),
-        )
+        for content, filename, date in downloaded
+    ]
+    return DownloadRecentResponse(
+        success=True,
+        documents=documents,
+        message=f"Downloaded {len(documents)} document(s) from the last {max_age_days} days",
+    )
 
 
 @app.get(
@@ -245,38 +175,23 @@ async def download_recent_documents(session_id: str, max_age_days: int = 3):
 )
 async def download_document(document_id: str, session_id: str):
     """
-    Download a specific document by index.
+    Download a specific document by its id from /documents.
 
     Returns the document as a binary PDF file.
     """
-    session = await session_manager.get_session(session_id)
-
-    if session is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or expired. Please start a new login.",
-        )
-
-    if session.status != "authenticated":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Session not authenticated. Current status: {session.status}",
-        )
-
-    client = UniversaClient(session)
-
+    session = _session(session_id, "authenticated")
     try:
-        content, filename = await client.download_document(document_id)
-        return Response(
-            content=content,
-            media_type="application/pdf",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-        )
-    except Exception as e:
+        content, filename = await PortalClient(session.state).download_document(document_id)
+    except PortalError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to download document: {str(e)}",
+            detail=f"Failed to download document: {e}",
         )
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.get(
@@ -288,19 +203,13 @@ async def get_session_status(session_id: str):
     """
     Get the status of a session.
     """
-    session = await session_manager.get_session(session_id)
-
+    session = unseal(session_id)
     if session is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or expired.",
-        )
-
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found or expired.")
     return SessionStatusResponse(
-        session_id=session.session_id,
+        session_id=session_id,
         status=session.status,
         created_at=session.created_at.isoformat(),
-        error_message=session.error_message,
     )
 
 
@@ -310,15 +219,10 @@ async def get_session_status(session_id: str):
 )
 async def delete_session(session_id: str):
     """
-    Delete a session and clean up resources.
+    Log out at the portal. The session_id itself cannot be revoked; it expires on its own.
     """
-    session = await session_manager.get_session(session_id)
-
+    session = unseal(session_id)
     if session is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or expired.",
-        )
-
-    await session_manager.remove_session(session_id)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found or expired.")
+    await PortalClient(session.state).logout()
     return {"message": "Session deleted"}

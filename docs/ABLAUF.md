@@ -52,13 +52,13 @@ Die Belege gehen wie gewohnt an die Versicherung. In der App stehen sie auf „e
 Liegt im Kundenportal ein neues Dokument, schickt die Universa eine Mail „uniVersa Kundenportal -
 Sie haben eine neue Nachricht". Darauf reagiert n8n (zusätzlich täglich um 04:00):
 
-1. Der [Downloader](../downloader/README.md) meldet sich per Browser im Portal an. Das Portal
-   schickt eine PIN per Mail.
+1. Der [Downloader](../downloader/README.md) meldet sich im Portal an, über dieselben
+   JSON-Aufrufe, die die Web-App des Portals macht, ohne Browser. Das Portal schickt eine PIN
+   per Mail.
 2. n8n wartet 5 Sekunden, liest die PIN aus dieser Mail und schließt den Login ab. Kommt die
    Mail später, schaut n8n alle 5 Sekunden nach, bis zu zwölf Mal (rund 60 Sekunden). Die
-   Eile hat einen Grund: Die Anmeldung liegt nur im Speicher der Cloud-Run-Instanz, die den
-   Login gemacht hat, und Cloud Run tauscht Instanzen oft schon nach 20 bis 40 Sekunden aus.
-   Kommt die PIN später, antwortet der Downloader mit „Session not found“. Eine Sitzung wird
+   Anmeldung steckt verschlüsselt in der `session_id`, die n8n weiterreicht; welche
+   Cloud-Run-Instanz den nächsten Aufruf bekommt, spielt keine Rolle. Eine Sitzung wird
    5 Minuten lang wiederverwendet.
 3. Alle Dokumente der letzten 4 Tage werden geholt. Was nicht schon im Ordner „verarbeitet"
    liegt, kommt in den Abrechnungs-Eingang.
