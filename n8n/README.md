@@ -62,10 +62,14 @@ Das Kundenportal schickt bei jeder Anmeldung eine PIN per Mail. Workflow 1 start
 über den Downloader, wartet 5 Sekunden, liest die ungelesenen Mails der Universa, nimmt die
 nach dem Login-Start eingegangene, daraus die erste sechsstellige Zahl, und schließt den Login
 ab. Ist die PIN-Mail noch nicht da, schaut er bis zu zwölf Mal im Abstand von 5 Sekunden nach
-(rund 60 Sekunden) und bricht dann mit einer Fehlermeldung ab. Die kurzen Abstände sind nötig,
-weil die Login-Sitzung nur im Speicher einer Cloud-Run-Instanz liegt und Cloud Run Instanzen
-oft schon nach 20 bis 40 Sekunden austauscht; mit 30 Sekunden Wartezeit scheiterte der Login
-im Oktober 2026 regelmäßig mit „Session not found“. Eine erfolgreiche Sitzung wird 5 Minuten lang wiederverwendet.
+(rund 60 Sekunden) und bricht dann mit einer Fehlermeldung ab.
+
+Die Sitzung steckt verschlüsselt in der `session_id`, die der Downloader zurückgibt (siehe
+[`downloader/README.md`](../downloader/README.md)). Nach der PIN liefert er eine neue; der Knoten
+„Code in JavaScript“ nimmt sie und merkt sie sich. Eine erfolgreiche Sitzung wird 5 Minuten lang
+wiederverwendet. Bis Oktober 2026 lag die Sitzung im Speicher einer Cloud-Run-Instanz, und der
+Login scheiterte mit „Session not found“, wenn Cloud Run die Instanz zwischen Login und PIN
+austauschte. Das ist vorbei; die kurzen Wartezeiten sind geblieben, weil sie nicht schaden.
 
 Folge: Wer Zugriff auf dieses Postfach und den Downloader hat, kommt ins Kundenportal. Postfach
 und Downloader-Token entsprechend schützen.
