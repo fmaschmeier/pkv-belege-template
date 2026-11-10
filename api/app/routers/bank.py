@@ -4,7 +4,7 @@ Bank Transaction API Routes
 from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Depends
 from typing import Optional
 
-from ..core.database import get_supabase
+from ..core.database import get_supabase, fetch_all
 from ..core.auth import get_current_user
 from ..schemas.bank import (
     BankTransactionResponse,
@@ -147,17 +147,20 @@ async def get_bank_stats(
     supabase = get_supabase()
 
     # All transactions
-    query = supabase.table("bank_transactions").select("amount, is_universa_payment, settlement_id")
-    if year:
-        query = query.gte("booking_date", f"{year}-01-01").lte("booking_date", f"{year}-12-31")
-    result = query.execute()
+    def build_query():
+        query = supabase.table("bank_transactions").select("amount, is_universa_payment, settlement_id")
+        if year:
+            query = query.gte("booking_date", f"{year}-01-01").lte("booking_date", f"{year}-12-31")
+        return query
 
-    expenses = [t for t in result.data if t["amount"] < 0]
-    universa = [t for t in result.data if t["is_universa_payment"]]
+    transactions = fetch_all(build_query)
+
+    expenses = [t for t in transactions if t["amount"] < 0]
+    universa = [t for t in transactions if t["is_universa_payment"]]
     matched = [t for t in universa if t["settlement_id"]]
 
     return {
-        "total_transactions": len(result.data),
+        "total_transactions": len(transactions),
         "total_expenses": len(expenses),
         "total_expenses_amount": sum(t["amount"] for t in expenses),
         "universa_payments": len(universa),
@@ -173,19 +176,19 @@ async def get_universa_matches(current_user: dict = Depends(get_current_user)):
     """Get all Universa payments with match status."""
     supabase = get_supabase()
 
-    result = supabase.table("bank_transactions").select(
+    transactions = fetch_all(lambda: supabase.table("bank_transactions").select(
         "id, booking_date, amount, description, settlement_id"
-    ).eq("is_universa_payment", True).order("booking_date", desc=True).execute()
+    ).eq("is_universa_payment", True).order("booking_date", desc=True))
 
     # Enrich with settlement numbers
-    settlement_ids = [t["settlement_id"] for t in result.data if t["settlement_id"]]
+    settlement_ids = [t["settlement_id"] for t in transactions if t["settlement_id"]]
     settlements = {}
     if settlement_ids:
         s_result = supabase.table("settlements").select("id, settlement_number").in_("id", settlement_ids).execute()
         settlements = {s["id"]: s["settlement_number"] for s in s_result.data}
 
     matches = []
-    for tx in result.data:
+    for tx in transactions:
         matches.append({
             "id": tx["id"],
             "booking_date": tx["booking_date"],

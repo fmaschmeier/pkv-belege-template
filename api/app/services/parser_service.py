@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from parser import parse_settlement_with_text, settlement_to_dict, check_totals, NotASettlementError
 from bank_parser import parse_commerzbank_csv, extract_settlement_number
 
-from ..core.database import get_supabase
+from ..core.database import get_supabase, fetch_all
 
 logger = logging.getLogger(__name__)
 
@@ -145,8 +145,8 @@ class ParserService:
             transactions = parse_commerzbank_csv(tmp_path)
 
             # Load settlement map
-            settlements = self.supabase.table("settlements").select("id, settlement_number").execute()
-            settlement_map = {s["settlement_number"]: s["id"] for s in settlements.data}
+            settlements = fetch_all(lambda: self.supabase.table("settlements").select("id, settlement_number"))
+            settlement_map = {s["settlement_number"]: s["id"] for s in settlements}
 
             inserted = 0
             skipped = 0
@@ -196,16 +196,16 @@ class ParserService:
         """Update settlement links for unmatched Universa transactions."""
 
         # Load settlements
-        settlements = self.supabase.table("settlements").select("id, settlement_number").execute()
-        settlement_map = {s["settlement_number"]: s["id"] for s in settlements.data}
+        settlements = fetch_all(lambda: self.supabase.table("settlements").select("id, settlement_number"))
+        settlement_map = {s["settlement_number"]: s["id"] for s in settlements}
 
         # Load unmatched
-        unmatched = self.supabase.table("bank_transactions").select(
+        unmatched = fetch_all(lambda: self.supabase.table("bank_transactions").select(
             "id, description"
-        ).eq("is_universa_payment", True).is_("settlement_id", "null").execute()
+        ).eq("is_universa_payment", True).is_("settlement_id", "null"))
 
         updated = 0
-        for tx in unmatched.data:
+        for tx in unmatched:
             settlement_nr = extract_settlement_number(tx["description"])
             if settlement_nr and settlement_nr in settlement_map:
                 self.supabase.table("bank_transactions").update({
@@ -214,7 +214,7 @@ class ParserService:
                 updated += 1
 
         return {
-            "unmatched_before": len(unmatched.data),
+            "unmatched_before": len(unmatched),
             "updated": updated,
-            "still_open": len(unmatched.data) - updated,
+            "still_open": len(unmatched) - updated,
         }

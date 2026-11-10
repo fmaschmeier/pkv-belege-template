@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Depends
 from typing import Optional
 
-from ..core.database import get_supabase
+from ..core.database import get_supabase, fetch_all
 
 logger = logging.getLogger(__name__)
 from ..core.auth import get_current_user
@@ -154,21 +154,22 @@ async def get_settlement_stats(
     """Get settlement statistics."""
     supabase = get_supabase()
 
-    query = supabase.table("settlements").select("settlement_date, total_reimbursed")
+    def build_query():
+        query = supabase.table("settlements").select("settlement_date, total_reimbursed")
+        if year:
+            query = query.gte("settlement_date", f"{year}-01-01").lte("settlement_date", f"{year}-12-31")
+        return query
 
-    if year:
-        query = query.gte("settlement_date", f"{year}-01-01").lte("settlement_date", f"{year}-12-31")
+    rows = fetch_all(build_query)
 
-    result = query.execute()
-
-    total_reimbursed = sum(s["total_reimbursed"] or 0 for s in result.data)
+    total_reimbursed = sum(s["total_reimbursed"] or 0 for s in rows)
 
     # Get items count
     items_query = supabase.table("settlement_items").select("id", count="exact")
     items_result = items_query.execute()
 
     return {
-        "settlements_count": len(result.data),
+        "settlements_count": len(rows),
         "items_count": items_result.count,
         "total_reimbursed": total_reimbursed,
         "year": year or "all",

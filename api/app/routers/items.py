@@ -6,7 +6,7 @@ from typing import Optional, List
 from datetime import date
 from pydantic import BaseModel
 
-from ..core.database import get_supabase
+from ..core.database import get_supabase, fetch_all
 from ..core.auth import get_current_user
 from ..schemas.settlements import ItemListResponse
 
@@ -48,14 +48,12 @@ async def list_items(
     supabase = get_supabase()
 
     # Query items with settlement info
-    query = supabase.table("settlement_items").select(
+    rows = fetch_all(lambda: supabase.table("settlement_items").select(
         "*, settlements(settlement_number, settlement_date)"
-    )
-
-    result = query.execute()
+    ))
 
     items = []
-    for item in result.data:
+    for item in rows:
         settlement = item.pop("settlements", {}) or {}
         item["settlement_number"] = settlement.get("settlement_number", "")
         item["settlement_date"] = settlement.get("settlement_date", "")
@@ -115,20 +113,20 @@ async def list_unlinked_items(
     supabase = get_supabase()
 
     # Get all items with settlement info
-    items_result = supabase.table("settlement_items").select(
+    all_items = fetch_all(lambda: supabase.table("settlement_items").select(
         "*, settlements(settlement_number, settlement_date)"
-    ).execute()
+    ))
 
     # Get all linked item IDs from submitted_receipts
-    linked_result = supabase.table("submitted_receipts").select(
-        "settlement_item_id"
-    ).not_.is_("settlement_item_id", "null").execute()
+    linked_result = fetch_all(lambda: supabase.table("submitted_receipts").select(
+        "id, settlement_item_id"
+    ).not_.is_("settlement_item_id", "null"))
 
-    linked_ids = {r["settlement_item_id"] for r in linked_result.data if r.get("settlement_item_id")}
+    linked_ids = {r["settlement_item_id"] for r in linked_result if r.get("settlement_item_id")}
 
     # Filter to unlinked items
     items = []
-    for item in items_result.data:
+    for item in all_items:
         if item["id"] not in linked_ids:
             settlement = item.pop("settlements", {}) or {}
             item["settlement_number"] = settlement.get("settlement_number", "")
@@ -179,12 +177,12 @@ async def search_items_for_matching(
     supabase = get_supabase()
 
     # Get all items with settlement info
-    result = supabase.table("settlement_items").select(
+    rows = fetch_all(lambda: supabase.table("settlement_items").select(
         "*, settlements(settlement_number, settlement_date)"
-    ).execute()
+    ))
 
     matches = []
-    for item in result.data:
+    for item in rows:
         item_amount = item.get("invoice_amount")
 
         # EXACT amount match required

@@ -14,7 +14,7 @@ import httpx
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from receipt_parser import parse_receipt, receipt_to_dict, get_pdf_creation_date
 
-from ..core.database import get_supabase
+from ..core.database import get_supabase, fetch_all
 from ..core.auth import get_current_user
 from ..core.config import get_settings
 from ..schemas.receipts import (
@@ -158,20 +158,17 @@ async def list_receipts(
     """List all submitted receipts with filters."""
     supabase = get_supabase()
 
-    query = supabase.table("submitted_receipts").select("*")
+    def build_query():
+        query = supabase.table("submitted_receipts").select("*")
+        if status:
+            query = query.eq("status", status)
+        if person:
+            query = query.ilike("insured_person", f"%{person}%")
+        if receipt_type:
+            query = query.eq("receipt_type", receipt_type)
+        return query.order("submission_date", desc=True)
 
-    if status:
-        query = query.eq("status", status)
-
-    if person:
-        query = query.ilike("insured_person", f"%{person}%")
-
-    if receipt_type:
-        query = query.eq("receipt_type", receipt_type)
-
-    result = query.order("submission_date", desc=True).execute()
-
-    receipts = result.data
+    receipts = fetch_all(build_query)
 
     # Enrich with settlement info for linked receipts
     linked_item_ids = [r["settlement_item_id"] for r in receipts if r.get("settlement_item_id")]
@@ -308,8 +305,7 @@ async def get_receipt_stats(
     """Get receipt statistics."""
     supabase = get_supabase()
 
-    result = supabase.table("submitted_receipts").select("*").execute()
-    receipts = result.data
+    receipts = fetch_all(lambda: supabase.table("submitted_receipts").select("*"))
 
     today = date.today()
 
@@ -923,25 +919,25 @@ async def match_receipts_to_settlements(
     supabase = get_supabase()
 
     # Get unmatched receipts
-    receipts = supabase.table("submitted_receipts").select("*").eq(
+    receipts = fetch_all(lambda: supabase.table("submitted_receipts").select("*").eq(
         "status", "submitted"
-    ).is_("settlement_item_id", "null").execute()
+    ).is_("settlement_item_id", "null"))
 
     # Get settlement items with settlement info
-    items = supabase.table("settlement_items").select(
+    items = fetch_all(lambda: supabase.table("settlement_items").select(
         "*, settlements(settlement_date, settlement_number)"
-    ).execute()
+    ))
 
     # Get already linked item IDs to avoid double-linking
-    linked_result = supabase.table("submitted_receipts").select(
-        "settlement_item_id"
-    ).not_.is_("settlement_item_id", "null").execute()
-    linked_ids = {r["settlement_item_id"] for r in linked_result.data if r.get("settlement_item_id")}
+    linked_result = fetch_all(lambda: supabase.table("submitted_receipts").select(
+        "id, settlement_item_id"
+    ).not_.is_("settlement_item_id", "null"))
+    linked_ids = {r["settlement_item_id"] for r in linked_result if r.get("settlement_item_id")}
 
     matched = 0
     match_details = []
 
-    for receipt in receipts.data:
+    for receipt in receipts:
         receipt_amount = receipt.get("invoice_amount")
         if not receipt_amount:
             continue
@@ -960,7 +956,7 @@ async def match_receipts_to_settlements(
 
         # Find all matching items by EXACT amount
         candidates = []
-        for item in items.data:
+        for item in items:
             # Skip already linked items
             if item["id"] in linked_ids:
                 continue
@@ -1040,7 +1036,7 @@ async def match_receipts_to_settlements(
 
     return {
         "success": True,
-        "checked": len(receipts.data),
+        "checked": len(receipts),
         "matched": matched,
         "details": match_details,
         "message": f"{matched} Belege verknüpft",
@@ -1133,19 +1129,19 @@ async def suggest_payments_for_receipt(
     # Load matching rules
     rules = load_matching_rules(supabase)
 
-    # Get all outgoing bank transactions (limit higher than default 1000)
-    transactions = supabase.table("bank_transactions").select("*").lt(
+    # Get all outgoing bank transactions (seitenweise; ein limit() über 1000 kappt Supabase stillschweigend)
+    transactions = fetch_all(lambda: supabase.table("bank_transactions").select("*").lt(
         "amount", 0
-    ).order("booking_date", desc=True).limit(10000).execute()
+    ).order("booking_date", desc=True))
 
     # Get all receipts that have payment links (to check for already-assigned transactions)
-    linked_receipts = supabase.table("submitted_receipts").select(
+    linked_receipts = fetch_all(lambda: supabase.table("submitted_receipts").select(
         "id, payment_transaction_id, provider_name, invoice_amount, invoice_date"
-    ).not_.is_("payment_transaction_id", "null").execute()
+    ).not_.is_("payment_transaction_id", "null"))
 
     # Build a map: transaction_id -> linked receipt info
     transaction_to_receipt = {}
-    for r in linked_receipts.data:
+    for r in linked_receipts:
         txn_id = r.get("payment_transaction_id")
         if txn_id and r["id"] != receipt_id:  # Exclude current receipt
             transaction_to_receipt[txn_id] = {
@@ -1163,7 +1159,7 @@ async def suggest_payments_for_receipt(
     matching = []
     same_amount = []
 
-    for txn in transactions.data:
+    for txn in transactions:
         txn_amount = abs(txn["amount"])
         amount_matches = abs(txn_amount - receipt_amount) < 0.02
 
@@ -1241,27 +1237,27 @@ async def match_receipts_to_payments(
     rules = load_matching_rules(supabase)
 
     # Get receipts without payment link (exclude rezept type - those are typically paid at pharmacy)
-    receipts = supabase.table("submitted_receipts").select("*").is_(
+    receipts = fetch_all(lambda: supabase.table("submitted_receipts").select("*").is_(
         "payment_transaction_id", "null"
-    ).neq("receipt_type", "rezept").execute()
+    ).neq("receipt_type", "rezept"))
 
-    # Get outgoing bank transactions from last 365 days (negative amounts = payments)
-    # Limit to 10000 rows AND last year as double safeguard for growing data
+    # Get outgoing bank transactions from last 365 days (negative amounts = payments),
+    # seitenweise: ein limit() über 1000 kappt Supabase stillschweigend
     from datetime import datetime, timedelta
     one_year_ago = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
-    transactions = supabase.table("bank_transactions").select("*").lt(
+    transactions = fetch_all(lambda: supabase.table("bank_transactions").select("*").lt(
         "amount", 0
-    ).gte("booking_date", one_year_ago).order("booking_date", desc=True).limit(10000).execute()
+    ).gte("booking_date", one_year_ago).order("booking_date", desc=True))
 
     # Get already linked transaction IDs to avoid double-linking
-    linked_transactions = supabase.table("submitted_receipts").select(
-        "payment_transaction_id"
-    ).not_.is_("payment_transaction_id", "null").execute()
-    linked_tx_ids = {r["payment_transaction_id"] for r in linked_transactions.data if r.get("payment_transaction_id")}
+    linked_transactions = fetch_all(lambda: supabase.table("submitted_receipts").select(
+        "id, payment_transaction_id"
+    ).not_.is_("payment_transaction_id", "null"))
+    linked_tx_ids = {r["payment_transaction_id"] for r in linked_transactions if r.get("payment_transaction_id")}
 
     matched = 0
 
-    for receipt in receipts.data:
+    for receipt in receipts:
         if not receipt.get("invoice_amount"):
             continue
 
@@ -1270,7 +1266,7 @@ async def match_receipts_to_payments(
         invoice_date = receipt.get("invoice_date")
         treatment_period = receipt.get("treatment_period")
 
-        for txn in transactions.data:
+        for txn in transactions:
             # Amount match
             txn_amount = abs(txn["amount"])
             if abs(txn_amount - float(receipt_amount)) > 0.01:
@@ -1336,7 +1332,7 @@ async def match_receipts_to_payments(
 
     return {
         "success": True,
-        "checked": len(receipts.data),
+        "checked": len(receipts),
         "matched": matched,
         "message": f"{matched} Belege mit Zahlungen verknüpft",
     }
