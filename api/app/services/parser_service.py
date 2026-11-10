@@ -10,7 +10,7 @@ from typing import Optional
 # Add parent directory to path for parser import
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from parser import parse_settlement_with_text, settlement_to_dict, NotASettlementError
+from parser import parse_settlement_with_text, settlement_to_dict, check_totals, NotASettlementError
 from bank_parser import parse_commerzbank_csv, extract_settlement_number
 
 from ..core.database import get_supabase
@@ -37,6 +37,14 @@ class ParserService:
         try:
             # Parse PDF and get raw_text
             settlement, raw_text = parse_settlement_with_text(tmp_path)
+
+            # Lieber gar nicht speichern als unvollständig: fehlende Positionen fallen sonst erst
+            # auf, wenn Belege wochenlang als nicht erstattet gelten
+            problem = check_totals(settlement)
+            if problem:
+                logger.error(problem)
+                raise ValueError(problem)
+
             data = settlement_to_dict(settlement)
 
             # Override filename with original

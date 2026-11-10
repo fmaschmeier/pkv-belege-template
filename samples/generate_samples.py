@@ -1133,6 +1133,8 @@ class Settlement:
     receipts: list[Receipt]
     rows: list[SRow] = field(default_factory=list)
     item_notes: dict = field(default_factory=dict)
+    # Indizes in rows, vor denen die Einzelaufstellung auf einer neuen Seite weitergeht
+    break_before: tuple[int, ...] = ()
 
     @property
     def total_reimbursed(self) -> Decimal:
@@ -1208,6 +1210,10 @@ def build_settlements(receipts: list[Receipt]) -> list[Settlement]:
     settle(s1, 1201, sb_left)
     settle(s2, 1301, sb_left)
     settle(s3, 1401, {})
+    # R/26/117 geht über zwei Tabellenseiten, und B/26/1204 läuft über den Umbruch: die Zeile mit
+    # dem zweiten Tarif steht erst auf der nächsten Seite (wie bei echten Abrechnungen mit vielen Belegen)
+    s1.break_before = (next(i for i, r in enumerate(s1.rows)
+                            if r.number == "B/26/1204" and r.invoice_amount is None),)
     return [s1, s2, s3]
 
 
@@ -1215,8 +1221,16 @@ def _m(x):
     return money(x) if x is not None else ""
 
 
+def _is_page_footer(row: list[str]) -> bool:
+    return row[4].startswith("Seite ") and not any(c for i, c in enumerate(row) if i != 4)
+
+
 def settlement_table(s: Settlement) -> list[list[str]]:
-    """Tabelle als 13 Spalten, so wie pdf.co die Anlage als CSV ausgibt."""
+    """Tabelle als 13 Spalten, so wie pdf.co die Anlage als CSV ausgibt (alle Tabellenseiten).
+
+    Jede Tabellenseite endet mit ihrer Fußzeile „Seite N“; eine Folgeseite beginnt wieder mit
+    Versicherungsnummer und Spaltenköpfen, ohne Titel.
+    """
     E = ""
     out = [[f"Einzelaufstellung zu Ihrer Leistungsabrechnung {s.number} vom {de_long(s.when)}"]
            + [E] * 12,
@@ -1225,6 +1239,9 @@ def settlement_table(s: Settlement) -> list[list[str]]:
             "korrigierter", "zurück-", "erstattungs-", "tariflicher", "Selbst-", "Erstattung", E],
            ["Nr.", "Belegart", "zeitraum", "betrag", E, "anteil", "Betrag", "gestellt", "fähig",
             "Eigenanteil", "beteiligung", "EUR", E]]
+    page_head = [list(r) for r in out[1:4]]
+    page = 2
+    index = {id(r): i for i, r in enumerate(s.rows)}
     persons = []
     for row in s.rows:
         if row.receipt.person not in persons:
@@ -1234,6 +1251,10 @@ def settlement_table(s: Settlement) -> list[list[str]]:
         rows = [r for r in s.rows if r.receipt.person == p]
         seen = set()
         for r in rows:
+            if index[id(r)] in s.break_before:
+                out.append([E] * 4 + [f"Seite {page}"] + [E] * 8)
+                page += 1
+                out.extend(list(h) for h in page_head)
             rc = r.receipt
             first = r.number not in seen
             seen.add(r.number)
@@ -1252,7 +1273,7 @@ def settlement_table(s: Settlement) -> list[list[str]]:
         out.append([f"Gesamtsumme für {p.full}", E, E, money(inv)] + [E] * 7 + [money(rei), E])
     out.append(["Gesamt:", E, E, money(s.total_invoiced)] + [E] * 4 +
                ["Wir überweisen Ihnen", E, E, money(s.total_reimbursed), E])
-    out.append([E] * 4 + ["Seite 2"] + [E] * 8)
+    out.append([E] * 4 + [f"Seite {page}"] + [E] * 8)
     return out
 
 
@@ -1290,23 +1311,39 @@ def render_settlement(s: Settlement, path: Path):
     pg.disclaimer()
     c.showPage()
 
-    # Seite 2: Einzelaufstellung (quer)
+    # Ab Seite 2: Einzelaufstellung (quer), eine Seite je Abschnitt bis zur Fußzeile „Seite N“
     size = landscape(A4)
     c.setPageSize(size)
-    pg = Pg(c, size)
     table = settlement_table(s)
-    pg.t(12, 14, table[0][0], 10, "Helvetica-Bold")
-    pg.t(285, 14, table[1][9], 9, align="r")
+    segments, current = [], []
+    for row in table:
+        current.append(row)
+        if _is_page_footer(row):
+            segments.append(current)
+            current = []
+    for k, seg in enumerate(segments):
+        if k:
+            c.setPageSize(size)
+        render_settlement_page(Pg(c, size), seg if k else seg[1:], title=None if k else seg[0][0])
+        c.showPage()
+    c.save()
+
+
+def render_settlement_page(pg: Pg, seg: list[list[str]], title: str | None):
+    """Eine Seite der Einzelaufstellung: Versicherungsnummer, Spaltenköpfe, Zeilen, Fußzeile."""
+    if title:
+        pg.t(12, 14, title, 10, "Helvetica-Bold")
+    pg.t(285, 14, seg[0][9], 9, align="r")
     xs = [(12, "l"), (30, "l"), (93, "l"), (140, "r"), (144, "l"), (175, "r"), (196, "r"),
           (214, "r"), (234, "r"), (252, "r"), (268, "r"), (285, "r")]
     y = 24
-    for hdr in table[2:4]:
+    for hdr in seg[1:3]:
         for (x, al), val in zip(xs, hdr):
             pg.t(x, y, val, 6.8, "Helvetica-Bold", align=al)
         y += 3.2
     pg.hline(12, 285, y - 1.8)
     y += 2.5
-    for row in table[4:-1]:
+    for row in seg[3:-1]:
         col0 = row[0]
         if ", geb. " in col0:
             y += 1.5
@@ -1331,11 +1368,9 @@ def render_settlement(s: Settlement, path: Path):
             for (x, al), val in zip(xs, row):
                 pg.t(x, y, val, 7, align=al)
             y += 4.2
-    pg.t(148, 200, "Seite 2", 7, color=GREY, align="c")
+    pg.t(148, 200, seg[-1][4], 7, color=GREY, align="c")
     pg.watermark(200)
     pg.disclaimer(205)
-    c.showPage()
-    c.save()
 
 
 def render_insurer_letter(path: Path, when: date):

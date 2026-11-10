@@ -70,10 +70,15 @@ Namen trägt:
 
 1. Die API (`POST /settlements/upload`) liest sie mit [`parser.py`](../parser.py), ohne KI.
    **Seite 1**, das Anschreiben: Abrechnungsnummer (`R/26/117`), Datum, Versicherungsnummer und
-   der überwiesene Betrag. **Seite 2**, die Einzelaufstellung, wandelt pdf.co in CSV um. Je
+   der überwiesene Betrag. **Ab Seite 2** die Einzelaufstellung, bei vielen Belegen über mehrere
+   Seiten; pdf.co wandelt alle diese Seiten in ein CSV um (`TABLE_PAGES` in `parser.py`). Je
    Position stehen darin Belegnummer, Person, Leistungserbringer, Zeitraum, Rechnungsbetrag,
    Tarif, korrigierter und zurückgestellter Betrag, Eigenanteil, Selbstbeteiligung und
    Erstattung. Kosten laut Erfahrung 7 bis 10 pdf.co-Credits je Abrechnung.
+   Ergibt die Summe der gelesenen Erstattungen nicht den überwiesenen Betrag, fehlen Positionen:
+   Die API speichert die Abrechnung dann nicht und antwortet mit HTTP 400 und dem Grund.
+   Achtung: Der Upload-Knoten in n8n läuft bei Fehlern weiter (`continueRegularOutput`), die
+   Datei wandert also trotzdem nach „verarbeitet".
 2. Die Datei wandert in „verarbeitet".
 3. Hat die Versicherung zu einzelnen Positionen Hinweise geschrieben, kommt eine Mail mit der
    PDF im Anhang.

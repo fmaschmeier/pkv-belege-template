@@ -51,6 +51,18 @@ def mark(ok: bool) -> str:
     return "ok " if ok else "XX "
 
 
+def pages_in_spec(spec: str, page_count: int) -> set[int]:
+    """Seitenindizes (ab 0) einer pdf.co-Seitenangabe wie "1-", "0,2-5" oder "1"."""
+    pages = set()
+    for part in (x.strip() for x in spec.split(",") if x.strip()):
+        if "-" in part:
+            a, b = part.split("-", 1)
+            pages.update(range(int(a or 0), int(b) + 1 if b else page_count))
+        else:
+            pages.add(int(part))
+    return {i for i in pages if 0 <= i < page_count}
+
+
 def check_receipts(manifest, cache) -> tuple[int, int, list[str]]:
     fields = ["receipt_type", "invoice_amount", "invoice_date", "insured_person",
               "invoice_number", "provider"]
@@ -107,10 +119,19 @@ def check_settlements(manifest, cache) -> list[str]:
         pdf = HERE / exp["file"]
         key = file_hash(pdf, "md5")
         plant(cache, key, "header", (HERE / exp["pdfco_header_fixture"]).read_text("utf-8"))
-        plant(cache, key, "csv", (HERE / exp["pdfco_csv_fixture"]).read_text("utf-8"))
+        plant(cache, key, settlement_parser.CSV_CACHE_KIND,
+              (HERE / exp["pdfco_csv_fixture"]).read_text("utf-8"))
         with contextlib.redirect_stdout(io.StringIO()):
             got, _ = settlement_parser.parse_settlement_with_text(str(pdf))
         errs = []
+        # pdf.co muss alle Tabellenseiten liefern (Seite 0 ist das Anschreiben)
+        page_count = len(PdfReader(pdf).pages)
+        missing = set(range(1, page_count)) - pages_in_spec(settlement_parser.TABLE_PAGES, page_count)
+        if missing:
+            errs.append(f"TABLE_PAGES {settlement_parser.TABLE_PAGES!r} liest Seite(n) "
+                        f"{sorted(missing)} von {page_count} nicht")
+        if settlement_parser.check_totals(got):
+            errs.append(settlement_parser.check_totals(got))
         for f in ("settlement_number", "settlement_date", "insurance_number"):
             if getattr(got, f) != exp[f]:
                 errs.append(f"{f} = {getattr(got, f)!r}, Soll {exp[f]!r}")
@@ -132,7 +153,8 @@ def check_settlements(manifest, cache) -> list[str]:
                       "reimbursed_amount"):
                 if abs((getattr(gi, f) or 0) - ei[f]) >= 0.005:
                     errs.append(f"{ei['receipt_number']} {f} = {getattr(gi, f)!r}, Soll {ei[f]!r}")
-        print(f"{mark(not errs)}{exp['settlement_number']}: {len(got.items)} Positionen, "
+        print(f"{mark(not errs)}{exp['settlement_number']}: {page_count - 1} Tabellenseite(n), "
+              f"{len(got.items)} Positionen, "
               f"erstattet {got.total_reimbursed:.2f} EUR, Hinweis-Codes {notes_codes}/{notes_exp}, "
               f"Hinweis-Texte {notes_texts}/{notes_exp}")
         errors += [f"  {exp['settlement_number']}: {e}" for e in errs]

@@ -66,6 +66,18 @@ PDFCO_API_KEY = os.getenv("PDFCO_API_KEY", "")
 # Cache-Verzeichnis
 CACHE_DIR = Path(__file__).parent / ".cache"
 
+# Seiten der Einzelaufstellung für pdf.co. pdf.co zählt ab 0 (https://developer.pdf.co/api/pdf-to-csv):
+# Seite 0 ist das Anschreiben, ab Seite 1 folgt die Tabelle, bei vielen Belegen über mehrere Seiten.
+# Bis 2026-11-10 stand hier nur "1"; alles ab der zweiten Tabellenseite fehlte dann ohne Fehlermeldung.
+TABLE_PAGES = "1-"
+
+# Cache-Art für das Tabellen-CSV. Der frühere Schlüssel "csv" enthielt nur eine Tabellenseite.
+CSV_CACHE_KIND = "csv_tables"
+
+# Zeilen, die pdf.co aus Kopf und Fuß jeder Tabellenseite übernimmt (keine Belegdaten)
+PAGE_CHROME = re.compile(r"^(Seite \d+|alle Beträge in EUR|Krankenversicherung:.*|Versicherungsnummer:.*)$")
+PAGE_HEADER_COL0 = {"Beleg-", "nummer", "Nr."}
+
 
 def get_file_hash(file_path: str) -> str:
     """Berechnet MD5-Hash einer Datei für Cache-Key."""
@@ -149,8 +161,8 @@ def upload_pdf_to_pdfco(pdf_path: str) -> str:
     return file_url
 
 
-def extract_csv_from_pdf(file_url: str, page: int = 1) -> str:
-    """Extrahiert CSV-Daten aus PDF via pdf.co API."""
+def extract_csv_from_pdf(file_url: str, pages: str = TABLE_PAGES) -> str:
+    """Extrahiert CSV-Daten aus PDF via pdf.co API (Standard: alle Tabellenseiten)."""
 
     response = requests.post(
         "https://api.pdf.co/v1/pdf/convert/to/csv",
@@ -161,7 +173,7 @@ def extract_csv_from_pdf(file_url: str, page: int = 1) -> str:
         json={
             "url": file_url,
             "inline": True,
-            "pages": str(page)
+            "pages": pages
         }
     )
     response.raise_for_status()
@@ -258,6 +270,11 @@ def parse_csv_table(csv_text: str) -> list[SettlementItem]:
 
         col0 = row[0].strip() if row[0] else ""
         col1 = row[1].strip() if len(row) > 1 and row[1] else ""
+
+        # Kopf und Fuß einer Tabellenseite überspringen, ohne den Zustand zu ändern: Eine Position
+        # oder Person kann auf der nächsten Seite weitergehen
+        if col0 in PAGE_HEADER_COL0 or any(PAGE_CHROME.match(c.strip()) for c in row if c):
+            continue
 
         # Neue Person erkannt
         if ", geb. " in col0:
@@ -397,7 +414,7 @@ def parse_settlement_with_text(pdf_path: str) -> tuple[Settlement, str]:
     header = parse_header(header_text)
 
     # Prüfe Cache für CSV
-    csv_text = get_cached_result(file_hash, "csv")
+    csv_text = get_cached_result(file_hash, CSV_CACHE_KIND)
     if csv_text:
         print("  CSV: aus Cache geladen")
     else:
@@ -405,8 +422,8 @@ def parse_settlement_with_text(pdf_path: str) -> tuple[Settlement, str]:
         # Falls noch keine file_url, nochmal hochladen
         if 'file_url' not in locals():
             file_url = upload_pdf_to_pdfco(pdf_path)
-        csv_text = extract_csv_from_pdf(file_url, page=1)
-        save_to_cache(file_hash, "csv", csv_text)
+        csv_text = extract_csv_from_pdf(file_url)
+        save_to_cache(file_hash, CSV_CACHE_KIND, csv_text)
 
     items = parse_csv_table(csv_text)
 
@@ -433,6 +450,24 @@ def parse_settlement_with_text(pdf_path: str) -> tuple[Settlement, str]:
     )
 
     return settlement, raw_text
+
+
+def check_totals(settlement: Settlement) -> Optional[str]:
+    """
+    Vergleicht die Summe der Erstattungsbeträge aller Positionen mit dem Auszahlungsbetrag
+    aus dem Anschreiben („wir überweisen heute …“). Gibt bei einer Abweichung eine Meldung
+    zurück, sonst None. Ohne Auszahlungsbetrag im Anschreiben wird nicht geprüft.
+
+    Fängt ab, dass Positionen beim Lesen verloren gehen (z. B. eine nicht gelesene Tabellenseite).
+    """
+    if settlement.total_reimbursed is None:
+        return None
+    items_sum = round(sum(item.reimbursed_amount or 0 for item in settlement.items), 2)
+    if abs(items_sum - settlement.total_reimbursed) < 0.01:
+        return None
+    return (f"{settlement.settlement_number}: Summe der {len(settlement.items)} gelesenen Positionen "
+            f"({items_sum:.2f} EUR) weicht vom Auszahlungsbetrag ({settlement.total_reimbursed:.2f} EUR) ab. "
+            f"Es fehlen vermutlich Positionen; die Abrechnung wurde nicht gespeichert.")
 
 
 def settlement_to_dict(settlement: Settlement) -> dict:
